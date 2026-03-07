@@ -1,0 +1,179 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Base ──────────────────────────────────────────────────────────────────── */
+@layer base {
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+    font-synthesis: none;
+  }
+
+  body {
+    @apply antialiased text-slate-700 bg-[#f9fafb] transition-colors duration-300;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-semibold tracking-tight text-slate-900;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-200 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-300;
+  }
+
+  ::selection {
+    @apply bg-slate-200 text-slate-900;
+  }
+}
+
+/* ─── Components ─────────────────────────────────────────────────────────────── */
+@layer components {
+
+  /* ── Buttons ── */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary-900 text-white text-[13px] font-medium rounded-xl hover:bg-primary-800 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-sm;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-slate-700 text-[13px] font-medium rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 transition-all active:scale-[0.98];
+  }
+
+  /* ── Cards ── */
+  .card {
+    @apply bg-white border border-slate-200 rounded-2xl shadow-card;
+  }
+
+  /* ── Forms ── */
+  .input-field {
+    @apply w-full px-3.5 py-2.5 rounded-xl text-[13px] border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-900/5 focus:border-primary-900 transition-all;
+  }
+
+  .input-label {
+    @apply block text-[11px] font-semibold text-slate-500 mb-1.5 uppercase tracking-wider;
+  }
+
+  /* ── Page structure ── */
+  .page-header {
+    @apply flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8;
+  }
+
+  .page-title {
+    @apply text-xl font-bold text-slate-900 flex items-center gap-2;
+  }
+
+  /* ── Badges ── */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border;
+  }
+
+  .badge-primary {
+    @apply bg-slate-50 text-slate-700 border-slate-200;
+  }
+
+  .badge-success {
+    @apply bg-emerald-50 text-emerald-700 border-emerald-100;
+  }
+
+  .badge-warning {
+    @apply bg-amber-50 text-amber-700 border-amber-100;
+  }
+}
+
+/* ─── Utilities ──────────────────────────────────────────────────────────────── */
+@layer utilities {
+  .animate-fade-in {
+    @apply animate-[fadeIn_0.5s_ease-out];
+  }
+
+  .animate-slide-up {
+    @apply animate-[slideUp_0.5s_ease-out];
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-slate-200 rounded-full;
+  }
+
+  /* React Data Table Overrides for Premium look */
+  .rdt_Table {
+    @apply bg-transparent !important;
+  }
+
+  .rdt_Header {
+    @apply hidden !important;
+  }
+
+  .rdt_TableHeadRow {
+    @apply bg-slate-50 border-b border-slate-100 min-h-[44px] !important;
+  }
+
+  .rdt_TableHeadRow [role="columnheader"] {
+    @apply text-[10px] font-bold text-slate-400 uppercase tracking-wider p-4 !important;
+  }
+
+  .rdt_TableRow {
+    @apply border-b border-slate-50 hover:bg-slate-50/50 transition-colors min-h-[64px] !important;
+  }
+
+  .rdt_TableCell {
+    @apply p-4 text-[13px] text-slate-600 !important;
+  }
+}
+
+/* Toastify Overrides */
+.Toastify__toast {
+  @apply rounded-xl font-semibold text-xs !important;
+}
