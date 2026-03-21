@@ -131,10 +131,10 @@ const Dashboard = () => {
 
             {/* Operations */}
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-4">
-                <ActionCard title="Attendance" desc="Clock-in/out" link="/attendence" icon={Activity} />
-                <ActionCard title="Visits" desc="Planned assignments" link="/visit" icon={Briefcase} />
-                <ActionCard title="Expenses" desc="Reimbursement claims" link="/expense" icon={Wallet} />
-                <ActionCard title="Reports" desc="Detailed analytics" link="/report" icon={FileBarChart} />
+                <ActionCard title="Attendance" desc="Clock-in/out" link="/attendance" icon={Activity} />
+                <ActionCard title="Visits" desc="Planned assignments" link="/visits" icon={Briefcase} />
+                <ActionCard title="Expenses" desc="Reimbursement claims" link="/my-expenses" icon={Wallet} />
+                <ActionCard title="Reports" desc="Detailed analytics" link="/reports" icon={FileBarChart} />
             </div>
 
             {/* Distribution Card */}

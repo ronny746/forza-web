@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Menu, Bell, Search, ChevronDown, LogOut, User, Settings, Globe } from 'lucide-react';
+import { Menu, Bell, Search, ChevronDown, LogOut, User } from 'lucide-react';
+import logo from '../assets/logo.jpeg';
 
 const Header = ({ sidebarOpen, setSidebarOpen }) => {
     const { user, logout } = useAuth();
@@ -25,8 +26,9 @@ const Header = ({ sidebarOpen, setSidebarOpen }) => {
                     <Menu size={20} />
                 </button>
 
-                <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 bg-slate-100 rounded-md">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ForzaMedi System</span>
+                <div className="hidden lg:flex items-center gap-2 px-2 py-1 bg-slate-50 rounded-lg border border-slate-100">
+                    <img src={logo} alt="Forza" className="w-5 h-5 object-contain" />
+                    <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight">ForzaMedi System</span>
                 </div>
             </div>
 

@@ -18,7 +18,6 @@ import SettlementReports from './pages/SettlementReports';
 import ExpensePaymentHistory from './pages/ExpensePaymentHistory';
 import Attendance from './pages/Attendance';
 import AttendanceReport from './pages/AttendanceReport';
-import ExpenseFinance from './pages/ExpenseFinance';
 import Profile from './pages/Profile';
 
 const PrivateRoute = ({ children }) => {
@@ -43,31 +42,40 @@ function AppRoutes() {
 
       {/* Main */}
       <Route path="/dashboard" element={<W><Dashboard /></W>} />
-      <Route path="/visit" element={<W><Visit /></W>} />
-      <Route path="/leave_management" element={<W><LeaveManagement /></W>} />
-      <Route path="/misspunch" element={<W><MissPunchRequests /></W>} />
-      <Route path="/attendence" element={<W><Attendance /></W>} />
-      <Route path="/report" element={<W><AttendanceReport /></W>} />
+      <Route path="/visits" element={<W><Visit /></W>} />
+      <Route path="/correction-requests" element={<W><MissPunchRequests /></W>} />
+      <Route path="/attendance" element={<W><Attendance /></W>} />
+      <Route path="/reports" element={<W><AttendanceReport /></W>} />
       <Route path="/profile" element={<W><Profile /></W>} />
 
       {/* Admin */}
-      <Route path="/user" element={<W><UserManagement /></W>} />
-      <Route path="/register" element={<W><Register /></W>} />
-      <Route path="/user_configuration" element={<W><UserConfiguration /></W>} />
-      <Route path="/expense_claim" element={<W><ExpenseClaim /></W>} />
-      <Route path="/expense" element={<W><ExpenseManagement /></W>} />
+      <Route path="/users" element={<W><UserManagement /></W>} />
+      <Route path="/registration" element={<W><Register /></W>} />
+      <Route path="/settings" element={<W><UserConfiguration /></W>} />
+      <Route path="/my-expenses" element={<W><ExpenseManagement /></W>} />
 
-      {/* HR Expense — single unified page, filter via dropdown inside */}
-      <Route path="/expense_hr" element={<W><ExpenseHR /></W>} />
-      <Route path="/expense_reports" element={<W><SettlementReports /></W>} />
-      <Route path="/expense_payments" element={<W><ExpensePaymentHistory /></W>} />
-      <Route path="/expense_finance" element={<W><ExpenseFinance /></W>} />
+      {/* HR Expense */}
+      <Route path="/hr-expenses" element={<W><ExpenseHR /></W>} />
+      <Route path="/settlements" element={<W><SettlementReports /></W>} />
+      <Route path="/payments" element={<W><ExpensePaymentHistory /></W>} />
 
-      <Route path="/pending_approves" element={<Navigate to="/expense_hr" />} />
-      <Route path="/released_approves" element={<Navigate to="/expense_hr" />} />
-      <Route path="/hold" element={<Navigate to="/expense_hr" />} />
-      <Route path="/expense-hr" element={<Navigate to="/expense_hr" />} />
-      <Route path="/expense-hr/*" element={<Navigate to="/expense_hr" />} />
+      {/* Legacy Redirects */}
+      <Route path="/visit" element={<Navigate to="/visits" />} />
+      <Route path="/report" element={<Navigate to="/reports" />} />
+      <Route path="/misspunch" element={<Navigate to="/correction-requests" />} />
+      <Route path="/user" element={<Navigate to="/users" />} />
+      <Route path="/register" element={<Navigate to="/registration" />} />
+      <Route path="/user_configuration" element={<Navigate to="/settings" />} />
+      <Route path="/expense" element={<Navigate to="/my-expenses" />} />
+      <Route path="/expense_hr" element={<Navigate to="/hr-expenses" />} />
+      <Route path="/expense_reports" element={<Navigate to="/settlements" />} />
+      <Route path="/expense_payments" element={<Navigate to="/payments" />} />
+      <Route path="/attendence" element={<Navigate to="/attendance" />} />
+
+      <Route path="/pending_approves" element={<Navigate to="/hr-expenses" />} />
+      <Route path="/released_approves" element={<Navigate to="/hr-expenses" />} />
+      <Route path="/hold" element={<Navigate to="/hr-expenses" />} />
+      <Route path="/expense-hr/*" element={<Navigate to="/hr-expenses" />} />
 
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/dashboard" />} />

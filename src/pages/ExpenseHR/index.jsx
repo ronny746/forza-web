@@ -16,6 +16,9 @@ import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import * as XLSX from 'xlsx';
 import { useTableStyles } from '../../utils/tableStyles';
+import { getExpenseDetails } from '../../utils/expense_helpers';
+import Loader from '../../components/ui/Loader';
+import { TableSearch, TablePagination, TableEmpty, PageLoader } from '../../components/ui/TableComponents';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const getMonthDates = () => {
@@ -102,7 +105,9 @@ const printTable = (data, title) => {
             <td>${i + 1}</td><td>${shortId(r.ExpenseReqId)}</td>
             <td>${(r.FirstName || '')} ${(r.LastName || '')}</td><td>${r.EMPCode || '—'}</td>
             <td>${r.VisitFrom || '—'}</td><td>${r.VisitTo || '—'}</td>
-            <td>${r.ExpModeDesc || '—'}</td><td>₹ ${Number(r.amount ?? 0).toLocaleString('en-IN')}</td>
+            <td>${r.ExpModeDesc || '—'}</td>
+            <td style="max-width: 150px; font-size: 9px; color: #475569;">${getExpenseDetails(r)}</td>
+            <td>₹ ${Number(r.amount ?? 0).toLocaleString('en-IN')}</td>
             <td>${fmtDate(r.createdAt)}</td><td>${statusLabel(r)}</td>
         </tr>`).join('');
     const html = `<!DOCTYPE html><html><head><title>${title}</title>
@@ -110,7 +115,7 @@ const printTable = (data, title) => {
         table{width:100%;border-collapse:collapse}th{background:#f1f5f9;padding:8px;text-align:left;font-size:10px;text-transform:uppercase;border-bottom:2px solid #e2e8f0}
         td{padding:8px;border-bottom:1px solid #f1f5f9}tr:nth-child(even) td{background:#f8fafc}</style>
         </head><body><h2>${title}</h2><p>Generated: ${new Date().toLocaleString('en-IN')}</p>
-        <table><thead><tr><th>#</th><th>ID</th><th>Employee</th><th>EMP Code</th><th>From</th><th>To</th><th>Mode</th><th>Amount</th><th>Date</th><th>HR Status</th></tr></thead>
+        <table><thead><tr><th>#</th><th>ID</th><th>Employee</th><th>EMP Code</th><th>From</th><th>To</th><th>Mode</th><th>Details</th><th>Amount</th><th>Date</th><th>HR Status</th></tr></thead>
         <tbody>${rows}</tbody></table>
         <script>window.onload=()=>{window.print();window.close()}</script></body></html>`;
     const w = window.open('', '_blank');
@@ -119,7 +124,8 @@ const printTable = (data, title) => {
 };
 
 // ─── Excel export via the proper export API ────────────────────────────────────
-const exportExcelFull = async (dateFilter, empFilter, searchFilter = '') => {
+const exportExcelFull = async (dateFilter, empFilter, searchFilter = '', setExportLoading) => {
+    setExportLoading(true);
     try {
         const res = await api.get('/v1/admin/expense/get-export-expense-hr', {
             params: { startDate: dateFilter.startDate, endDate: dateFilter.endDate, empCode: empFilter === 'all' ? '' : empFilter, searchKey: searchFilter }
@@ -129,39 +135,27 @@ const exportExcelFull = async (dateFilter, empFilter, searchFilter = '') => {
         else if (Array.isArray(res.data?.data?.rows)) rows = res.data.data.rows;
         else if (Array.isArray(res.data)) rows = res.data;
 
-        if (!rows.length) { toast.warning('No records to export'); return; }
+        if (!rows.length) { toast.warning('No records to export'); setExportLoading(false); return; }
 
-        const ws = XLSX.utils.json_to_sheet(rows.map((r, i) => {
-            const total = r.TotalAmount || r.amount || 0;
-            const paid = r.PaidAmount || r.TotalPaidByHr || r['Paid Amount'] || 0;
-            const pending = r.PendingAmount || (Number(total) - Number(paid)) || 0;
-
-            return {
-                '#': i + 1,
-                'Expense Date': r.ExpenseDate || fmtDate(r.createdAt),
-                'Visit Date': r.VisitDate || '—',
-                'Employee Code': r.EmployeeId || r.EMPCode || r.EmpCode || '—',
-                'Full Name': r.EmployeeName || `${r.FirstName || ''} ${r.LastName || ''}`.trim(),
-                'Expense ID': r.ExpenseReqId || r['Expense ID'] || '—',
-                'Expense Type': r.ExpenseType || r.ExpModeDesc || '—',
-                'From': r.VisitFrom || '—',
-                'To': r.VisitTo || '—',
-                'Purpose': r.Purpose || r.VisitPurpose || '—',
-                'Total Amount (₹)': Number(total),
-                'Paid Amount (₹)': Number(paid),
-                'Pending Amount (₹)': Number(pending),
-                'Approved By': r.ApprovedByName || '—',
-                'Manager Status': r.ManagerStatus || r.ExpenseStatus || '—',
-                'HR Status': r.HrStatus || '—',
-                'Manager Reject Reason': r.ManagerRejectReason || r.reject_reason || '—',
-                'HR Hold Reason': r.HrHoldReason || r.hold_reason_by_hr || '—',
-            };
-        }));
+        const ws = XLSX.utils.json_to_sheet(rows.map((r, i) => ({
+            '#': i + 1,
+            'Expense Date': r.ExpenseDate || (r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-GB') : '—'),
+            'Emp Code': r.EMPCode || '—',
+            'Employee Name': `${r.FirstName || ''} ${r.LastName || ''}`,
+            'Expense Type': r.ExpModeDesc || r.ExpenseType || '—',
+            'Details': getExpenseDetails(r),
+            'Amount': Number(r.amount || 0),
+            'From': r.VisitFrom || '—',
+            'To': r.VisitTo || '—',
+            'Purpose': r.VisitPurpose || '—',
+            'Status': r.HrStatus || 'Pending'
+        })));
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'HR_Expense_Report');
-        XLSX.writeFile(wb, `HR_Expense_${dateFilter.startDate}_to_${dateFilter.endDate}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
+        XLSX.writeFile(wb, `HR_Expense_${dateFilter.startDate}.xlsx`);
         toast.success('Excel exported ✓');
-    } catch { toast.error('Export failed. Check date range.'); }
+    } catch { toast.error('Export failed'); }
+    setExportLoading(false);
 };
 
 // ─── Conveyance Details Card ──────────────────────────────────────────────────
@@ -308,6 +302,7 @@ const DetailDrawer = ({ expense, images, hrFilter, loading, onClose, onApprove, 
         <div className="w-full max-w-lg flex flex-col bg-white shadow-2xl border-l border-gray-100 h-full"
             style={{ animation: 'sbIn .25s cubic-bezier(.16,1,.3,1)' }}>
             <style>{`@keyframes sbIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
+            <Loader show={loading} message="Processing Payroll" subMessage="Compiling expense claims and verification data..." />
 
             {/* ── Sticky Header (never scrolls away) ── */}
             <div className="shrink-0">
@@ -527,6 +522,7 @@ const ExpenseHR = () => {
     const [perPage, setPerPage] = useState(10);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [exportLoading, setExportLoading] = useState(false);
     const [tick, setTick] = useState(false);
     const [filterModal, setFilterModal] = useState(false);
     const [dateDraft, setDateDraft] = useState(getMonthDates());
@@ -571,25 +567,16 @@ const ExpenseHR = () => {
     const isAdmin = desigId === 9 || desigId === 12 || dept === 'admin' || dept === 'it' || dept === 'administration' || Number(user?.DeptId) === 4;
     const allowed = isHR || isAdmin;
 
-    if (!allowed) {
-        return (
-            <div className="flex flex-col items-center justify-center py-32 text-center gap-4">
-                <XCircle size={64} className="text-red-300" />
-                <h2 className="text-2xl font-extrabold text-gray-900">Access Denied</h2>
-                <p className="text-gray-400 max-w-sm text-sm">Only HR personnel can access this page.</p>
-            </div>
-        );
-    }
-
     // ── Fetch employee list from /get-all-user → result.data.data.data.userData ──
     useEffect(() => {
+        if (!allowed) return;
         api.get('/v1/admin/user_details/get-all-user')
             .then(res => {
                 const users = res.data?.data?.data?.userData || res.data?.data?.userData || [];
                 setEmployees(users);
             })
             .catch(() => { });
-    }, []);
+    }, [allowed]);
 
     // ── Fetch all HR expenses ──
     const fetchData = async () => {
@@ -604,26 +591,29 @@ const ExpenseHR = () => {
                     endDate: dateFilter.endDate,
                     EMPCode: empFilter,
                     hrFilter: hrFilter,
-                    paymentFilter: 'all', // Can add a selector for this if needed
+                    paymentFilter: 'all',
                 },
             });
-            // The API returns { data: { rows: [] } }
             setAllRows(res.data?.data?.rows || []);
         } catch { }
         setLoading(false);
     };
 
-    useEffect(() => { fetchData(); }, [tick, search, dateFilter, empFilter, hrFilter]);
+    useEffect(() => {
+        if (allowed) fetchData();
+    }, [tick, search, dateFilter, empFilter, hrFilter, allowed]);
+
 
     // ── Client-side filter + paginate ──
     useEffect(() => {
+        if (!allowed) return;
         // Since we now use server-side filtering for hrFilter & paymentFilter,
         // we only apply client-side pagination here.
         const filtered = allRows;
         setTotal(filtered.length);
         const start = page * perPage;
         setData(filtered.slice(start, start + perPage));
-    }, [allRows, page, perPage]);
+    }, [allRows, page, perPage, allowed]);
 
     // ── Open detail drawer ──
     const openDetail = async (row) => {
@@ -725,6 +715,10 @@ const ExpenseHR = () => {
             cell: r => <span className="bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full text-xs font-medium">{r.ExpModeDesc || '—'}</span>
         },
         {
+            name: 'Details', minWidth: '150px',
+            cell: r => <span className="text-xs font-bold text-gray-700 truncate max-w-[140px]">{r.Details || '—'}</span>
+        },
+        {
             name: 'Amount', minWidth: '110px', center: true, sortable: true, selector: r => r.amount,
             cell: r => <span className="font-black text-emerald-600 text-sm">₹&nbsp;{Number(r.amount ?? 0).toLocaleString('en-IN')}</span>
         },
@@ -747,8 +741,19 @@ const ExpenseHR = () => {
     const isPendingFilter = hrFilter === 'pending';
     const pageCount = Math.ceil(total / perPage);
 
+    if (!allowed) {
+        return (
+            <div className="flex flex-col items-center justify-center py-32 text-center gap-4">
+                <XCircle size={64} className="text-red-300" />
+                <h2 className="text-2xl font-extrabold text-gray-900">Access Denied</h2>
+                <p className="text-gray-400 max-w-sm text-sm">Only HR personnel can access this page.</p>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-5">
+            <Loader show={exportLoading} message="Processing Payroll" subMessage="Compiling expense claims and verification data..." />
             <div className="page-header">
                 <div>
                     <h1 className="page-title text-2xl font-black">Expense Management Portal</h1>
@@ -759,12 +764,11 @@ const ExpenseHR = () => {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden">
                 {/* ── Toolbar ── */}
                 <div className="flex flex-wrap items-center gap-3 p-4 border-b border-gray-100">
-                    <div className="relative min-w-[180px] flex-1 max-w-xs">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                        <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }}
-                            placeholder="Search name…"
-                            className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary-400 bg-white shadow-sm" />
-                    </div>
+                    <TableSearch
+                        value={search}
+                        onChange={e => { setSearch(e.target.value); setPage(0); }}
+                        placeholder="Search name…"
+                    />
 
                     <select value={hrFilter} onChange={e => { setHrFilter(e.target.value); setPage(0); }}
                         className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 bg-white shadow-sm focus:outline-none focus:border-primary-400 cursor-pointer">
@@ -788,7 +792,7 @@ const ExpenseHR = () => {
                             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm">
                             <Filter size={13} /> Date Range
                         </button>
-                        <button onClick={() => exportExcelFull(dateFilter, empFilter, search)}
+                        <button onClick={() => exportExcelFull(dateFilter, empFilter, search, setExportLoading)}
                             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 shadow-sm">
                             <FileSpreadsheet size={13} /> Excel
                         </button>
@@ -846,36 +850,17 @@ const ExpenseHR = () => {
                         selectableRowDisabled={r => String(r.EMPCode) === String(user?.appUserId || localStorage.getItem('EMPCode'))}
                         onSelectedRowsChange={({ selectedRows }) => setSelected2(selectedRows)}
                         clearSelectedRows={cleared}
-                        noDataComponent={
-                            <div className="py-20 flex flex-col items-center text-center">
-                                <FileText size={44} className="text-gray-200 mb-4" />
-                                <p className="text-base font-bold text-gray-400">No records found</p>
-                                <p className="text-sm text-gray-300 mt-1">Try changing the status filter or date range</p>
-                            </div>
-                        }
+                        noDataComponent={<TableEmpty icon={FileText} title="No records found" subtitle="Try changing the status filter or date range." />}
                     />
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-gray-50/50 gap-3">
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <span>Rows:</span>
-                        <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(0); }}
-                            className="border border-gray-200 rounded-lg px-2 py-1 bg-white text-sm focus:outline-none">
-                            {[10, 25, 50, 100].map(v => <option key={v} value={v}>{v}</option>)}
-                        </select>
-                        <span className="text-gray-400">{data.length ? page * perPage + 1 : 0}–{Math.min((page + 1) * perPage, total)} of {total}</span>
-                    </div>
-                    <ReactPaginate
-                        previousLabel="‹" nextLabel="›" pageCount={pageCount} forcePage={page}
-                        onPageChange={p => setPage(p.selected)}
-                        containerClassName="flex items-center gap-1 text-sm"
-                        pageLinkClassName="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
-                        activeLinkClassName="!bg-primary-600 !text-white !border-primary-600"
-                        previousLinkClassName="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-100"
-                        nextLinkClassName="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-100"
-                        disabledLinkClassName="opacity-40 cursor-not-allowed"
-                    />
-                </div>
+                <TablePagination
+                    total={total}
+                    current={page}
+                    perPage={perPage}
+                    onPageChange={setPage}
+                    onPerPageChange={p => { setPerPage(Number(p)); setPage(0); }}
+                />
             </div>
 
             {drawer && mounted && createPortal(

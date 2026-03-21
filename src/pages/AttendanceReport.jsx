@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import DataTable from 'react-data-table-component';
 import { Calendar, Search, FileSpreadsheet, RefreshCw, Database, MapPin, Clock, FileText, ChevronDown, Download, Users, ClipboardList } from 'lucide-react';
+import Loader from '../components/ui/Loader';
 import { toast } from 'react-toastify';
 import api from '../utils/api';
 import * as XLSX from 'xlsx';
 import { useTableStyles } from '../utils/tableStyles';
+import { TableSearch, TablePagination, TableEmpty, PageLoader } from '../components/ui/TableComponents';
 import moment from 'moment';
 
 const getMonthDates = () => {
@@ -26,6 +28,8 @@ const AttendanceReport = () => {
     const [reportData, setReportData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [employees, setEmployees] = useState([]);
+    const [page, setPage] = useState(0);
+    const [perPage, setPerPage] = useState(10);
     const [totalItems, setTotalItems] = useState(0);
 
     // Initial Fetch for Employee list
@@ -79,9 +83,9 @@ const AttendanceReport = () => {
         const hasCheckOut = !!row.PresentTimeOut;
 
         if (hasCheckIn && hasCheckOut) {
-            return <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-widest border border-emerald-100">Complete</span>;
+            return <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-widest border border-emerald-100">Completed</span>;
         } else if (hasCheckIn && !hasCheckOut) {
-            return <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-black uppercase tracking-widest border border-amber-100">Ongoing</span>;
+            return <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-black uppercase tracking-widest border border-amber-100">In Progress</span>;
         } else {
             return <span className="px-2.5 py-1 rounded-lg bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border border-slate-100">Pending</span>;
         }
@@ -153,7 +157,11 @@ const AttendanceReport = () => {
                     </div>
                     <div>
                         <div className="font-black text-slate-900 text-[13px] tracking-tight">{r.FirstName} {r.LastName}</div>
-                        <div className="text-[10px] font-black text-primary-500/70 uppercase tracking-widest leading-none mt-1">{r.EMPCode}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] font-black text-primary-500/70 uppercase tracking-widest leading-none">{r.EMPCode}</span>
+                            <span className="text-[10px] text-slate-300">|</span>
+                            <span className="text-[10px] font-bold text-slate-400 truncate max-w-[100px]">{r.Designatation || ''}</span>
+                        </div>
                     </div>
                 </div>
             )
@@ -209,7 +217,7 @@ const AttendanceReport = () => {
             )
         },
         {
-            name: 'Health Status',
+            name: 'Attendance Status',
             cell: r => <StatusBadge row={r} />,
             width: '140px',
             center: true
@@ -218,6 +226,7 @@ const AttendanceReport = () => {
 
     return (
         <div className="space-y-8 animate-fade-in pb-20">
+            <Loader show={loading} message="Analyzing Attendance" subMessage="Preparing detailed movement records..." />
 
             {/* Header Content */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -226,9 +235,9 @@ const AttendanceReport = () => {
                         <div className="w-10 h-10 rounded-2xl bg-primary-900 flex items-center justify-center">
                             <ClipboardList className="text-white" size={20} />
                         </div>
-                        Compliance Report
+                        Attendance Report
                     </h1>
-                    <p className="text-slate-500 font-medium mt-1">Audit-ready attendance and movement chronicles</p>
+                    <p className="text-slate-500 font-medium mt-1">Detailed attendance and movement records</p>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -237,7 +246,7 @@ const AttendanceReport = () => {
                         disabled={loading || !reportData.length}
                         className="btn bg-slate-900 border border-slate-900 hover:bg-slate-800 text-white rounded-2xl px-6 py-3 text-xs font-black uppercase tracking-widest flex items-center gap-2 disabled:opacity-50 transition-all active:scale-95"
                     >
-                        <Download size={14} /> Export Dataset
+                        <Download size={14} /> Export Excel
                     </button>
                 </div>
             </div>
@@ -254,24 +263,24 @@ const AttendanceReport = () => {
                                 onChange={e => setFilter({ ...filter, emp: e.target.value })}
                                 className="input-field pl-12"
                             >
-                                <option value="all">Every Personnel</option>
+                                <option value="all">All Personnel</option>
                                 {employees.map(e => <option key={e.EMPCode} value={e.EMPCode}>{e.FirstName} {e.LastName}</option>)}
                             </select>
                         </div>
                     </div>
 
                     <div className="space-y-2">
-                        <label className="input-label">Archive Start</label>
+                        <label className="input-label">Start Date</label>
                         <input type="date" value={filter.startDate} onChange={e => setFilter({ ...filter, startDate: e.target.value })} className="input-field" />
                     </div>
 
                     <div className="space-y-2">
-                        <label className="input-label">Archive End</label>
+                        <label className="input-label">End Date</label>
                         <input type="date" value={filter.endDate} onChange={e => setFilter({ ...filter, endDate: e.target.value })} className="input-field" />
                     </div>
 
                     <div className="space-y-2">
-                        <label className="input-label">Identifier Search</label>
+                        <label className="input-label">Search Records</label>
                         <div className="relative group">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary-500" size={16} />
                             <input type="text" placeholder="Name, code, site..." value={filter.search} onChange={e => setFilter({ ...filter, search: e.target.value })} className="input-field pl-12" />
@@ -284,7 +293,7 @@ const AttendanceReport = () => {
                         onClick={() => { setFilter({ ...getMonthDates(), emp: 'all', search: '' }); setReportData([]); }}
                         className="text-xs font-black text-slate-400 hover:text-rose-500 uppercase tracking-widest transition-colors flex items-center gap-2"
                     >
-                        <RefreshCw size={14} /> Clear Parameters
+                        <RefreshCw size={14} /> Reset Filters
                     </button>
 
                     <button
@@ -293,44 +302,45 @@ const AttendanceReport = () => {
                         className="px-10 py-4 bg-primary-900 text-white rounded-[1.5rem] text-sm font-black uppercase tracking-widest flex items-center gap-3 hover:bg-primary-800 disabled:opacity-50 transition-all active:scale-95"
                     >
                         {loading ? <RefreshCw size={18} className="animate-spin" /> : <Database size={18} />}
-                        Execute Query
+                        Generate Report
                     </button>
                 </div>
             </div>
 
-            {/* Matrix Result */}
-            <div className="card shadow-2xl shadow-slate-200/50 overflow-hidden border-none bg-white">
-                <div className="px-6 py-4 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-400">
-                            <FileText size={14} />
-                        </div>
-                        <h3 className="text-xs font-black text-slate-500 uppercase tracking-tighter">Synchronized Matrix Result</h3>
+            {/* Results */}
+            <div className="card-glass p-0 overflow-hidden">
+                <div className="table-search-bar">
+                    <TableSearch
+                        value={filter.search}
+                        onChange={e => setFilter({ ...filter, search: e.target.value })}
+                        placeholder="Search attendance mapping…"
+                    />
+                    <div className="flex items-center gap-2">
+                        <span className="badge badge-neutral">
+                            <ClipboardList size={12} /> {reportData.length} records
+                        </span>
                     </div>
-                    <span className="px-3 py-1 rounded-full bg-primary-50 text-primary-600 text-[10px] font-black uppercase tracking-widest">
-                        {reportData.length} Entries
-                    </span>
                 </div>
 
-                <div className="react-data-table-container">
-                    <DataTable
-                        columns={columns}
-                        data={reportData}
-                        pagination
-                        highlightOnHover
-                        customStyles={tableStyles}
-                        progressPending={loading}
-                        noDataComponent={
-                            <div className="py-24 text-center flex flex-col items-center">
-                                <div className="w-20 h-20 bg-slate-50 rounded-[2rem] flex items-center justify-center mb-6 shadow-inner text-slate-200">
-                                    <Database size={40} />
-                                </div>
-                                <p className="text-lg font-black text-slate-900 tracking-tight">Dataset Unloaded</p>
-                                <p className="text-slate-400 text-sm font-medium mt-1">Configure parameters and execute query to build matrix</p>
-                            </div>
-                        }
-                    />
-                </div>
+                <DataTable
+                    columns={columns}
+                    data={reportData.slice(page * perPage, (page + 1) * perPage)}
+                    noHeader
+                    responsive
+                    highlightOnHover
+                    customStyles={tableStyles}
+                    progressPending={loading}
+                    progressComponent={<PageLoader />}
+                    noDataComponent={<TableEmpty icon={Database} title="Audits Pending" subtitle="Fetch data to generate attendance reports." />}
+                />
+
+                <TablePagination
+                    total={reportData.length}
+                    current={page}
+                    perPage={perPage}
+                    onPageChange={setPage}
+                    onPerPageChange={p => { setPerPage(p); setPage(0); }}
+                />
             </div>
         </div>
     );

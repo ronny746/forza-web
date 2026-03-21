@@ -19,6 +19,8 @@ import { useTableStyles } from '../utils/tableStyles';
 import { motion, AnimatePresence } from 'framer-motion';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { getExpenseDetails } from '../utils/expense_helpers';
+import Loader from '../components/ui/Loader';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const getMonthDates = () => {
@@ -161,6 +163,7 @@ const ExpensePaymentHistory = () => {
     const [summary, setSummary] = useState(null);
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [exportLoading, setExportLoading] = useState(false);
     const [tick, setTick] = useState(false);
 
     const [search, setSearch] = useState('');
@@ -284,26 +287,35 @@ const ExpensePaymentHistory = () => {
     };
 
     const exportData = async () => {
+        setExportLoading(true);
         try {
             const res = await api.get('/v1/admin/expense/export-payment-report', {
                 params: { paymentFilter, startDate: dateFilter.startDate, endDate: dateFilter.endDate, EMPCode: empFilter }
             });
-            const data = res.data?.data || [];
-            if (!data.length) { toast.warning('No data to export'); return; }
+            const data = (res.data?.data || []).map(r => ({
+                ...r,
+                'Details': getExpenseDetails(r)
+            }));
+            if (!data.length) { toast.warning('No data to export'); setExportLoading(false); return; }
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, 'Payments');
-            XLSX.writeFile(wb, `Payment_Report_${dateFilter.startDate}.xlsx`);
+            const selectedEmp = employees.find(e => e.EMPCode === empFilter);
+            const namePart = selectedEmp ? `${selectedEmp.FirstName}_${selectedEmp.LastName}`.replace(/\s+/g, '_') : 'Global';
+            XLSX.writeFile(wb, `Payment_Report_${namePart}_${dateFilter.startDate}.xlsx`);
+            toast.success('XLSX generated successfully!');
         } catch (err) { toast.error('Export failed'); }
+        setExportLoading(false);
     };
 
     const exportPDF = async () => {
+        setExportLoading(true);
         try {
             const res = await api.get('/v1/admin/expense/export-payment-report', {
                 params: { paymentFilter, startDate: dateFilter.startDate, endDate: dateFilter.endDate, EMPCode: empFilter }
             });
             const data = res.data?.data || [];
-            if (!data.length) { toast.warning('No data to export'); return; }
+            if (!data.length) { toast.warning('No data to export'); setExportLoading(false); return; }
 
             const doc = new jsPDF('l', 'mm', 'a4');
 
@@ -319,13 +331,12 @@ const ExpensePaymentHistory = () => {
             doc.text(`Status Filter: ${paymentFilter === 'all' ? 'All Released' : paymentFilter}`, 14, 38);
 
             const tableColumn = [
-                "Emp Code", "Employee Name", "Expense ID", "Type",
+                "Emp Code", "Employee Name", "Expense ID", "Type", "Details",
                 "Total Amount", "Paid Amount", "Pending Amount", "Status", "Paid On"
             ];
             const tableRows = [];
 
             data.forEach(item => {
-                // Determine values with fallback for both camelCase and spaced keys
                 const total = item.TotalAmount || item['Total Amount'] || 0;
                 const paid = item.PaidAmount || item['Paid Amount'] || 0;
                 const pending = item.PendingAmount || item['Pending Amount'] || 0;
@@ -337,6 +348,7 @@ const ExpensePaymentHistory = () => {
                     empName,
                     item.ExpenseReqId || item['Expense ID'] || '—',
                     item.ExpenseType || item['Expense Type'] || '—',
+                    getExpenseDetails(item),
                     `INR ${Number(total).toLocaleString()}`,
                     `INR ${Number(paid).toLocaleString()}`,
                     `INR ${Number(pending).toLocaleString()}`,
@@ -361,12 +373,15 @@ const ExpensePaymentHistory = () => {
                 }
             });
 
-            doc.save(`Payment_Report_${dateFilter.startDate}.pdf`);
+            const selectedEmp = employees.find(e => e.EMPCode === empFilter);
+            const namePart = selectedEmp ? `${selectedEmp.FirstName}_${selectedEmp.LastName}`.replace(/\s+/g, '_') : 'Global';
+            doc.save(`Payment_Report_${namePart}_${dateFilter.startDate}.pdf`);
             toast.success('PDF generated successfully!');
         } catch (err) {
             console.error(err);
             toast.error('PDF Export failed');
         }
+        setExportLoading(false);
     };
 
     const openDetails = (row) => {
@@ -419,7 +434,7 @@ const ExpensePaymentHistory = () => {
             )
         },
         {
-            name: 'Actions', width: '120px', right: 'true',
+            name: 'Actions', width: '120px', right: true,
             cell: r => (
                 <div className="flex gap-1">
                     <button onClick={() => openDetails(r)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors">
@@ -440,6 +455,7 @@ const ExpensePaymentHistory = () => {
 
     return (
         <div className="space-y-6 max-w-[1600px] mx-auto p-2">
+            <Loader show={exportLoading} message="Processing Payments" subMessage="Compiling settlement records and generating audits..." />
 
             {/* ── Header & Summary ── */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">

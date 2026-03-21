@@ -13,37 +13,47 @@ import { useAuth } from '../context/AuthContext';
 // --- Configuration ---
 const ALL_NAV = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', section: 'core' },
-    { name: 'Visit Plan', icon: MapPin, path: '/visit', section: 'core' },
-    { name: 'Attendance', icon: Clock, path: '/attendence', section: 'core' },
-    { name: 'Attendance Report', icon: FileBarChart, path: '/report', section: 'core' },
+    { name: 'Visit Plans', icon: MapPin, path: '/visits', section: 'core' },
+    { name: 'Attendance', icon: Clock, path: '/attendance', section: 'core' },
+    { name: 'Reports', icon: FileBarChart, path: '/reports', section: 'core' },
     { name: 'Leave Management', icon: CalendarDays, path: 'http://14.99.179.133/lms', section: 'core', external: true },
-    { name: 'Miss Punch Requests', icon: ClipboardList, path: '/misspunch', section: 'core' },
-    { name: 'Expense Report', icon: Receipt, path: '/expense', section: 'expense' },
-    { name: 'User Details', icon: Users, path: '/user', section: 'admin' },
-    { name: 'Register', icon: UserPlus, path: '/register', section: 'admin' },
-    { name: 'System Config', icon: UserCog, path: '/user_configuration', section: 'admin' },
-    { name: 'Expense Desk (HR)', icon: FileCheck, path: '/expense_hr', section: 'hr' },
-    { name: 'Payment Tracking', icon: CreditCard, path: '/expense_payments', section: 'hr' },
-    { name: 'Settlement Reports', icon: FileBarChart, path: '/expense_reports', section: 'hr' },
-    { name: 'Expense (Finance)', icon: Wallet, path: '/expense_finance', section: 'finance' },
+    { name: 'Correction Requests', icon: ClipboardList, path: '/correction-requests', section: 'core' },
+    { name: 'My Expenses', icon: Receipt, path: '/my-expenses', section: 'expense' },
+    { name: 'User Directory', icon: Users, path: '/users', section: 'admin' },
+    { name: 'User Registration', icon: UserPlus, path: '/registration', section: 'admin' },
+    { name: 'System Settings', icon: UserCog, path: '/settings', section: 'admin' },
+    { name: 'HR Expenses', icon: FileCheck, path: '/hr-expenses', section: 'hr' },
+    { name: 'Payment History', icon: CreditCard, path: '/payments', section: 'hr' },
+    { name: 'Settlement Reports', icon: FileBarChart, path: '/settlements', section: 'hr' },
 ];
 
-const SECTION_LABELS = { core: 'Navigation', expense: 'Expenditure', admin: 'Organization', hr: 'Human Capital', finance: 'Treasury' };
+const SECTION_LABELS = { core: 'Navigation', expense: 'Personal', admin: 'Administration', hr: 'HR Desk' };
 
 const getVisibleItems = (user) => {
-    const d = Number(user?.DesigId || 0);
+    const desig = (user?.Designatation || '').toLowerCase();
     const dept = (user?.Department || '').toLowerCase();
-    const isAdmin = [1, 5, 9, 12].includes(d) || dept === 'admin' || dept === 'it' || Number(user?.DeptId) === 4;
-    const isHR = dept === 'human resource' || dept === 'hr' || Number(user?.DeptId) === 3;
-    const isManager = [3, 4, 8, 10, 13].includes(d);
+    const desigId = Number(user?.DesigId || 0);
+    const deptId = Number(user?.DeptId || 0);
+
+    // Admin IDs: usually 1, 5, 12, etc. (Adjust based on user feedback or project defaults)
+    const isAdmin = desig.includes('admin') || [1, 5, 12].includes(desigId) || dept === 'admin' || deptId === 4;
+    const isHR = dept.includes('hr') || dept.includes('human resource') || deptId === 3;
 
     return ALL_NAV.filter(item => {
+        // Admin sees everything
         if (isAdmin) return true;
-        if (isHR) return ['Dashboard', 'Leave Management', 'Expense Desk (HR)', 'Payment Tracking', 'Settlement Reports'].includes(item.name);
-        if (isManager) return !['Expense Desk (HR)', 'Expense (Finance)'].includes(item.name);
-        return ['Dashboard', 'Visit Plan', 'Leave Management', 'Expense Report', 'Attendance', 'Attendance Report', 'Miss Punch Requests'].includes(item.name);
+
+        // HR sees Core + HR specific items
+        if (isHR) {
+            return item.section === 'core' || item.section === 'hr' || item.name === 'Dashboard';
+        }
+
+        // Normal users see Core + personal Expense Report
+        return item.section === 'core' || item.section === 'expense';
     });
 };
+
+import logo from '../assets/logo.jpeg';
 
 const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     const { user, logout } = useAuth();
@@ -83,11 +93,12 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
                     ${sidebarOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full lg:translate-x-0 lg:w-0 lg:opacity-0 overflow-hidden'}
                 `}
             >
-                <div className="h-16 flex items-center gap-3 px-6 shrink-0 border-b border-slate-100">
-                    <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center shadow-md">
-                        <Activity className="text-white" size={16} strokeWidth={3} />
+                <div className="h-20 flex items-center gap-2.5 px-4 shrink-0 border-b border-slate-100 bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
+                    <img src={logo} alt="ForzaMedi" className="h-10 w-auto object-contain shrink-0" />
+                    <div className="flex flex-col">
+                        <h2 className="font-extrabold text-slate-900 text-[15px] tracking-tight leading-[1.1] uppercase">Forza</h2>
+                        <h2 className="font-bold text-slate-500 text-[13px] tracking-tight leading-[1] uppercase">Medi</h2>
                     </div>
-                    <h2 className="font-bold text-slate-800 text-[17px] tracking-tight">ForzaMedi</h2>
                 </div>
 
                 <div className="px-4 py-4">

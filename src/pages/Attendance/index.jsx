@@ -33,9 +33,9 @@ const AttendanceCard = ({ row }) => {
     // Status Logic
     const status = hasIn && hasOut ? 'completed' : hasIn ? 'in-progress' : 'pending';
     const statusConfig = {
-        'completed': { label: 'Active', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-        'in-progress': { label: 'Ongoing', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-        'pending': { label: 'Waiting', bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' },
+        'completed': { label: 'Completed', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+        'in-progress': { label: 'In Progress', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+        'pending': { label: 'Pending', bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' },
     }[status];
 
     const initials = row.EmployeeName?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || '??';
@@ -159,10 +159,10 @@ const Attendance = () => {
     const pending = data.filter(r => !r.PresentTimeIn).length;
 
     const stats = [
-        { label: 'Cloud Ledger', value: total, color: 'blue', icon: LayoutGrid },
-        { label: 'Daliy Completed', value: completed, color: 'emerald', icon: CheckCircle },
-        { label: 'Active Personnel', value: inProgress, color: 'amber', icon: Activity },
-        { label: 'Pending Sync', value: pending, color: 'slate', icon: Clock },
+        { label: 'Total Records', value: total, color: 'blue', icon: LayoutGrid },
+        { label: 'Completed', value: completed, color: 'emerald', icon: CheckCircle },
+        { label: 'In Progress', value: inProgress, color: 'amber', icon: Activity },
+        { label: 'Pending', value: pending, color: 'slate', icon: Clock },
     ];
 
     return (
@@ -175,7 +175,7 @@ const Attendance = () => {
                         <div className="w-10 h-10 rounded-2xl bg-primary-600 flex items-center justify-center shadow-lg shadow-primary-100">
                             <Users className="text-white" size={20} />
                         </div>
-                        Personnel Attendance
+                        Attendance Management
                     </h1>
                     <p className="text-slate-500 font-medium mt-1">Real-time status of all field executives and branch staff</p>
                 </div>
@@ -183,7 +183,7 @@ const Attendance = () => {
                 <div className="flex items-center gap-3">
                     <button onClick={() => setTrigger(p => !p)} className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-black text-slate-600 uppercase tracking-widest hover:bg-slate-50 hover:border-primary-100 hover:text-primary-600 transition-all active:scale-95 shadow-sm">
                         <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                        Refresh Matrix
+                        Refresh
                     </button>
                 </div>
             </div>
@@ -199,7 +199,7 @@ const Attendance = () => {
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary-600 transition-colors" />
                     <input
                         type="search"
-                        placeholder="Scan registry by name or code..."
+                        placeholder="Search by name, emp code, email..."
                         value={search}
                         onChange={e => { setSearch(e.target.value); setPage(0); }}
                         className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-semibold text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-primary-500/5 focus:bg-white focus:border-primary-300 transition-all"
@@ -207,7 +207,7 @@ const Attendance = () => {
                 </div>
 
                 <div className="flex items-center gap-4 text-xs font-black text-slate-400 uppercase tracking-widest">
-                    <span className="hidden sm:inline">Active Synchronizers:</span>
+                    <span className="hidden sm:inline">Active Records:</span>
                     <div className="flex -space-x-2">
                         {[1, 2, 3].map(i => <div key={i} className={`w-8 h-8 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-[10px] text-slate-500`}>{i}</div>)}
                     </div>

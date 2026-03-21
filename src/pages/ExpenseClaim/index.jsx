@@ -3,6 +3,7 @@ import DataTable from 'react-data-table-component';
 import { Receipt, MapPin, Briefcase, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../../utils/api';
+import Loader from '../../components/ui/Loader';
 import { useTableStyles } from '../../utils/tableStyles';
 import { TableSearch, TablePagination, TableEmpty, PageLoader } from '../../components/ui/TableComponents';
 
@@ -28,10 +29,13 @@ const ExpenseClaim = () => {
     };
 
     const exportXlsx = () => {
+        const first = data[0];
+        const allSame = data.every(r => r.EMPCode === first?.EMPCode);
+        const namePart = (first && allSame) ? `${first.FirstName}_${first.LastName}`.replace(/\s+/g, '_') : 'Global';
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
-        XLSX.writeFile(wb, 'expense_claims.xlsx');
+        XLSX.writeFile(wb, `Expense_Claims_${namePart}.xlsx`);
     };
 
     useEffect(() => { fetchData(); }, [search, page, perPage]);
@@ -82,6 +86,7 @@ const ExpenseClaim = () => {
 
     return (
         <div className="space-y-6 animate-slide-up">
+            <Loader show={loading} message="Fetching Claims" subMessage="Loading employee claim history and details..." />
             <div className="page-header">
                 <div>
                     <h1 className="page-title">Expense Claim</h1>

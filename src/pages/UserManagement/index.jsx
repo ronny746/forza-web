@@ -31,6 +31,8 @@ const UserManagement = () => {
         mobile_no: '',
         emp_code: '',
         department: '',
+        password: '',
+        confirm_password: '',
         isActive: true
     });
 
@@ -82,6 +84,8 @@ const UserManagement = () => {
                 mobile_no: u.MobileNo || '',
                 emp_code: u.EMPCode || '',
                 department: u.DeptId || '',
+                password: '', // Should be empty by default on edit
+                confirm_password: '',
                 isActive: u.IsActive === 1 || u.IsActive === true
             });
             setEditModal(true);
@@ -90,14 +94,16 @@ const UserManagement = () => {
 
     const handleUpdate = async (e) => {
         e.preventDefault();
+        if (formData.password && formData.password !== formData.confirm_password) {
+            return toast.error('Passwords do not match');
+        }
         setLoading(true);
         try {
-            const submissionData = {
-                ...formData,
-                password: '',
-                confirm_password: '',
-            };
-            // URL fix: /update-user instead of /app-update-user
+            const submissionData = { ...formData };
+            if (!formData.password) {
+                delete submissionData.password;
+                delete submissionData.confirm_password;
+            }
             const res = await api.post('/v1/admin/user_details/update-user', submissionData);
             if (res.data.error) {
                 toast.error(res.data.data?.message || 'Update failed');
@@ -115,9 +121,12 @@ const UserManagement = () => {
 
     const exportXlsx = () => {
         const ws = XLSX.utils.json_to_sheet(data);
+        const first = data[0];
+        const allSame = data.every(r => r.EMPCode === first?.EMPCode);
+        const namePart = (first && allSame) ? `${first.FirstName}_${first.LastName}`.replace(/\s+/g, '_') : 'Global';
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Users');
-        XLSX.writeFile(wb, 'user_details.xlsx');
+        XLSX.writeFile(wb, `User_Details_${namePart}.xlsx`);
     };
 
     useEffect(() => {
@@ -374,6 +383,28 @@ const UserManagement = () => {
                                         <option key={s.SAId} value={s.SAId}>{s.ServiceArea}</option>
                                     ))}
                                 </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="input-label font-bold text-gray-700 dark:text-gray-300">New Password (Leave blank to keep current)</label>
+                                <input
+                                    className="input-field shadow-sm hover:border-primary-400 focus:ring-2 focus:ring-primary-500/10"
+                                    type="password"
+                                    placeholder="Enter new password"
+                                    value={formData.password}
+                                    onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="input-label font-bold text-gray-700 dark:text-gray-300">Confirm Password</label>
+                                <input
+                                    className="input-field shadow-sm hover:border-primary-400 focus:ring-2 focus:ring-primary-500/10"
+                                    type="password"
+                                    placeholder="Confirm new password"
+                                    value={formData.confirm_password}
+                                    onChange={e => setFormData({ ...formData, confirm_password: e.target.value })}
+                                />
                             </div>
                         </div>
 

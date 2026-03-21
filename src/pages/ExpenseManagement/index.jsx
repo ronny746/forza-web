@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import DataTable from 'react-data-table-component';
 import {
-    CheckCircle, XCircle, Paperclip,
     LayoutDashboard, BarChart3, Download, ExternalLink, FileDown,
-    RefreshCw, Calendar, ChevronRight, Eye, Receipt, Check, X,
-    ToggleLeft, ToggleRight, FileText, CreditCard, MapPin, User,
-    Clock, AlertCircle
+    Search, Calendar, Filter, Eye, XCircle, FileText, CheckCircle, AlertCircle, Clock,
+    ToggleLeft, ToggleRight, CreditCard, MapPin, User, Users, RefreshCw, Receipt, X, ChevronRight, Paperclip, Check
 } from 'lucide-react';
+import Loader from '../../components/ui/Loader';
+import { getExpenseDetails } from '../../utils/expense_helpers';
 import { createPortal } from 'react-dom';
 import { toast } from 'react-toastify';
 import * as XLSX from 'xlsx';
@@ -395,6 +395,7 @@ const ExpenseManagement = () => {
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [exportLoading, setExportLoading] = useState(false);
     const [trigger, setTrigger] = useState(false);
     const [filterDates, setFilterDates] = useState(getCurrentMonthDates());
     const [filterModal, setFilterModal] = useState(false);
@@ -403,6 +404,8 @@ const ExpenseManagement = () => {
     // Filters (same as old Table.js)
     const [statusFilter, setStatusFilter] = useState('All');
     const [holdReleaseFilter, setHoldReleaseFilter] = useState('All');
+    const [empFilter, setEmpFilter] = useState('all');
+    const [employees, setEmployees] = useState([]);
     const [selfToggle, setSelfToggle] = useState(false);
 
     // Drawer
@@ -432,15 +435,21 @@ const ExpenseManagement = () => {
                 params: {
                     searchKey: search, pageIndex: page, pageSize: perPage,
                     startDate: filterDates.startDate, endDate: filterDates.endDate,
-                    EMPCode: 'all',
-                    filter: statusFilter // Server-side filtering (All, InProgress, Approved, Rejected)
+                    EMPCode: empFilter,
+                    filter: statusFilter
                 },
             });
             setData(res.data.data.rows || []);
             if (page === 0) setTotal(res.data.data.count || 0);
         } catch { /* silent */ }
         setLoading(false);
-    }, [trigger, search, page, perPage, filterDates, statusFilter]);
+    }, [trigger, search, page, perPage, filterDates, statusFilter, holdReleaseFilter, empFilter]);
+
+    useEffect(() => {
+        api.get('/v1/admin/user_details/get-all-user')
+            .then(res => setEmployees(res.data?.data?.data?.userData || []))
+            .catch(() => { });
+    }, []);
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -516,22 +525,13 @@ const ExpenseManagement = () => {
     };
 
     // ── Filters (mirrors old Table.js displayedCategory) ─────────────────────
+    // ── Filters (rely on server-side where possible) ─────────────────────────
     const displayedData = useMemo(() => {
         let d = data;
         if (selfToggle && currentEMPCode) {
             d = d.filter(r => r.EMPCode === currentEMPCode);
         }
-        if (statusFilter !== 'All') {
-            const want = normalize(statusFilter);
-            d = d.filter(r => {
-                const s = normalize(r.ExpenseStatus);
-                if (want === 'inprogress') {
-                    // Critical fix: Pending means NOT approved and NOT rejected
-                    return s !== 'approved' && s !== 'rejected';
-                }
-                return s === want;
-            });
-        }
+        // Local filtering for Hold/Release as API might not support it perfectly in 'filter' param
         if (holdReleaseFilter !== 'All') {
             d = d.filter(r => {
                 const hrStatus = r.ExpenseStatusChangeByHr === 1 ? 'Released' : 'On Hold';
@@ -539,7 +539,7 @@ const ExpenseManagement = () => {
             });
         }
         return d;
-    }, [data, statusFilter, holdReleaseFilter, selfToggle, currentEMPCode]);
+    }, [data, selfToggle, currentEMPCode, holdReleaseFilter]);
 
     const statusCounts = useMemo(() => {
         const c = { approved: 0, inprogress: 0, rejected: 0 };
@@ -553,28 +553,37 @@ const ExpenseManagement = () => {
     }, [data]);
 
     const exportXlsx = () => {
-        const ws = XLSX.utils.json_to_sheet(displayedData.map(r => {
-            const total = r.TotalAmount || r.amount || 0;
-            const paid = r.PaidAmount || r.TotalPaidByHr || r['Paid Amount'] || 0;
-            const pending = r.PendingAmount || (Number(total) - Number(paid)) || 0;
+        setExportLoading(true);
+        try {
+            const ws = XLSX.utils.json_to_sheet(displayedData.map(r => {
+                const total = r.TotalAmount || r.amount || 0;
+                const paid = r.PaidAmount || r.TotalPaidByHr || r['Paid Amount'] || 0;
+                const pending = r.PendingAmount || (Number(total) - Number(paid)) || 0;
 
-            return {
-                'ID': shortId(r.ExpenseReqId),
-                'Employee': `${r.FirstName} ${r.LastName}`,
-                'EMP Code': r.EMPCode,
-                'From': r.VisitFrom,
-                'To': r.VisitTo,
-                'Mode': r.ExpModeDesc,
-                'Total Amount (₹)': Number(total),
-                'Paid Amount (₹)': Number(paid),
-                'Pending Amount (₹)': Number(pending),
-                'Status': r.ExpenseStatus,
-                'Date': fmtDate(r.createdAt),
-            };
-        }));
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
-        XLSX.writeFile(wb, 'expense_management.xlsx');
+                return {
+                    'ID': shortId(r.ExpenseReqId),
+                    'Employee': `${r.FirstName} ${r.LastName}`,
+                    'EMP Code': r.EMPCode,
+                    'Expense Type': r.ExpModeDesc || r.ExpenseType || '—',
+                    'Details': getExpenseDetails(r),
+                    'From': r.VisitFrom,
+                    'To': r.VisitTo,
+                    'Total Amount (₹)': Number(total),
+                    'Paid Amount (₹)': Number(paid),
+                    'Pending Amount (₹)': Number(pending),
+                    'Status': r.ExpenseStatus,
+                    'Date': fmtDate(r.createdAt),
+                };
+            }));
+            const first = displayedData[0];
+            const allSame = displayedData.every(r => r.EMPCode === first?.EMPCode);
+            const namePart = (first && allSame) ? `${first.FirstName}_${first.LastName}`.replace(/\s+/g, '_') : 'Global';
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
+            XLSX.writeFile(wb, `Expense_Management_${namePart}.xlsx`);
+            toast.success('Excel exported ✓');
+        } catch { toast.error('Export failed'); }
+        setExportLoading(false);
     };
 
     // ── Columns ───────────────────────────────────────────────────────────────
@@ -584,19 +593,24 @@ const ExpenseManagement = () => {
             cell: (_, i) => <span className="text-xs font-bold text-gray-400">{page * perPage + i + 1}</span>,
         },
         {
-            name: 'Employee', minWidth: '200px', selector: r => r.FirstName, sortable: true,
+            name: 'Personnel', minWidth: '240px', selector: r => r.FirstName, sortable: true,
             cell: r => (
-                <div className="flex items-center gap-2.5 py-1">
-                    <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                <div className="flex items-center gap-3.5 py-4 min-w-0 w-full">
+                    <div className="w-10 h-10 rounded-2xl bg-primary-600 flex items-center justify-center text-white font-black text-sm shrink-0 shadow-lg shadow-primary-50">
                         {r.FirstName?.[0] || '?'}{r.LastName?.[0] || ''}
                     </div>
-                    <div className="min-w-0">
-                        <p className="font-semibold text-gray-900 text-sm leading-tight truncate">{r.FirstName} {r.LastName}</p>
-                        <p className="text-xs text-gray-400 font-mono">{r.EMPCode}</p>
+                    <div className="min-w-0 flex-1">
+                        <p className="font-black text-slate-900 text-[13px] tracking-tight truncate leading-tight mb-1">{r.FirstName} {r.LastName}</p>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-primary-500 uppercase tracking-widest leading-none">{r.EMPCode}</span>
+                            <span className="text-slate-200">|</span>
+                            <span className="text-[10px] font-bold text-slate-400 truncate uppercase leading-none">{r.Designatation || ''}</span>
+                        </div>
                     </div>
                 </div>
             ),
         },
+
         {
             name: 'Route', minWidth: '210px',
             cell: r => (
@@ -614,27 +628,33 @@ const ExpenseManagement = () => {
                 : <span className="text-gray-300 text-xs">—</span>,
         },
         {
-            name: 'Amount', minWidth: '110px', right: true,
-            cell: r => <span className="font-bold text-emerald-600 text-sm tabular-nums">₹{Number(r.amount ?? 0).toLocaleString('en-IN')}</span>,
+            name: 'Details', minWidth: '160px',
+            cell: r => (
+                <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-slate-700 truncate max-w-[150px]">{r.Details || '—'}</span>
+                </div>
+            ),
+        },
+        {
+            name: 'Amount', minWidth: '110px', right: true, sortable: true,
+            cell: r => <span className="font-black text-emerald-600 text-sm tabular-nums tracking-tight">₹{Number(r.amount ?? 0).toLocaleString('en-IN')}</span>,
         },
         {
             name: 'Status', minWidth: '120px', center: true,
             cell: r => <StatusBadge status={r.ExpenseStatus} />,
         },
         {
-            name: 'Date', minWidth: '145px',
-            cell: r => <span className="text-xs text-gray-400 tabular-nums">{fmtDate(r.createdAt)}</span>,
+            name: 'Date', minWidth: '135px', sortable: true,
+            cell: r => <span className="text-xs font-bold text-slate-400/80 tabular-nums whitespace-nowrap">{fmtDate(r.createdAt)}</span>,
         },
         {
             name: '', center: true, width: '80px',
             cell: r => (
                 <button
                     onClick={() => openDrawer(r)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold
-                               text-primary-600 bg-primary-50 hover:bg-primary-100
-                               rounded-lg transition-colors border border-primary-100/50"
+                    className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-xl transition-all border border-primary-100/50"
                 >
-                    <Eye size={12} /> View
+                    <Eye size={15} />
                 </button>
             ),
         },
@@ -650,6 +670,7 @@ const ExpenseManagement = () => {
 
     return (
         <div className="space-y-5 animate-slide-up">
+            <Loader show={exportLoading} message="Processing Expenses" subMessage="Syncing verified claims and visit data..." />
             {/* Page header */}
             <div className="page-header">
                 <div>
@@ -695,6 +716,17 @@ const ExpenseManagement = () => {
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${holdReleaseFilter === 'Released' ? 'bg-teal-600 text-white' : 'bg-teal-50 text-teal-700 hover:bg-teal-100'}`}>
                     🔓 HR Release
                 </button>
+
+                <div className="flex items-center gap-2 relative">
+                    <Users size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <select value={empFilter} onChange={e => { setEmpFilter(e.target.value); setPage(0); }}
+                        className="pl-8 pr-4 py-1.5 rounded-xl border border-gray-200 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 cursor-pointer shadow-sm">
+                        <option value="all">All Personnel</option>
+                        {employees.map(e => (
+                            <option key={e.EMPCode} value={e.EMPCode}>{e.FirstName} {e.LastName} ({e.EMPCode})</option>
+                        ))}
+                    </select>
+                </div>
 
                 <div className="w-px h-5 bg-gray-300 mx-1" />
 
