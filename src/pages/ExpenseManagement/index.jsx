@@ -176,7 +176,7 @@ const Timeline = ({ expense }) => {
 // ─── Right-side Drawer (Portaled & UI Sync) ───────────────────────────────────
 const Drawer = ({ open, onClose, selected, images, setImages, loading, onApprove, onReject, currentId }) => {
     const API_BASE = import.meta.env.VITE_APP_API_URL || 'https://wsn3.workgateway.in';
-    const IMG_BASE = `${API_BASE}/application_img/`;
+    const IMG_BASE = `${API_BASE}/public/application_img/`;
 
     const approveImage = async (img, idx) => {
         try {

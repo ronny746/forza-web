@@ -295,7 +295,7 @@ const DetailDrawer = ({ expense, images, hrFilter, loading, onClose, onApprove, 
     const canHold = statusVal === null || statusVal === undefined || statusVal === 1;
 
     const API_BASE = import.meta.env.VITE_APP_API_URL || 'https://wsn3.workgateway.in';
-    const IMG_BASE = `${API_BASE}/application_img/`;
+    const IMG_BASE = `${API_BASE}/public/application_img/`;
     const validImgs = images.filter(img => img?.imageName && img.imageName !== 'temp');
 
     return (
