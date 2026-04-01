@@ -121,7 +121,7 @@ const SettlementReports = () => {
 
     const downloadPDF = async (isWatermark = false) => {
         if (!reportData.length) return toast.warning('No data to export');
-        if (filter.emp === 'all') return toast.warning('Please select a specific employee to download their PDF report');
+        // if (filter.emp === 'all') return toast.warning('Please select a specific employee to download their PDF report');
         setExportLoading(true);
         try {
             const res = await api.get(isWatermark ? '/v1/admin/expense/pdf-with-watermark' : '/v1/admin/expense/pdf-report', {

@@ -92,7 +92,7 @@ const Login = () => {
                         <span className="text-white font-black text-xl italic">F</span>
                     </div>
                     <div>
-                        <p className="text-white font-bold text-xl tracking-tight leading-none uppercase">ForzaMedi</p>
+                        <p className="text-white font-bold text-xl tracking-tight leading-none uppercase">Forza Freedom</p>
                         <p className="text-primary-100/80 text-[10px] font-bold tracking-[0.2em] uppercase mt-1">WSN Portal</p>
                     </div>
                 </div>
@@ -136,7 +136,7 @@ const Login = () => {
                         <span className="text-white font-black text-base">F</span>
                     </div>
                     <div>
-                        <p className="font-bold text-gray-900 dark:text-white text-lg leading-none">ForzaMedi</p>
+                        <p className="font-bold text-gray-900 dark:text-white text-lg leading-none">Forza Freedom</p>
                         <p className="text-xs text-gray-400 font-medium">WSN Portal</p>
                     </div>
                 </div>
@@ -262,7 +262,7 @@ const Login = () => {
 
                     {/* Footer note */}
                     <p className="mt-10 text-center text-xs text-gray-400 dark:text-dark-textMuted">
-                        © 2024 ForzaMedi. All rights reserved.
+                        © 2024 Forza Freedom. All rights reserved.
                     </p>
                 </div>
             </div>

@@ -94,10 +94,9 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
                 `}
             >
                 <div className="h-20 flex items-center gap-2.5 px-4 shrink-0 border-b border-slate-100 bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
-                    <img src={logo} alt="ForzaMedi" className="h-10 w-auto object-contain shrink-0" />
+                    <img src={logo} alt="Forza Freedom" className="h-10 w-auto object-contain shrink-0" />
                     <div className="flex flex-col">
-                        <h2 className="font-extrabold text-slate-900 text-[15px] tracking-tight leading-[1.1] uppercase">Forza</h2>
-                        <h2 className="font-bold text-slate-500 text-[13px] tracking-tight leading-[1] uppercase">Medi</h2>
+                        <h2 className="font-extrabold text-slate-900 text-[15px] tracking-tight uppercase">Forza Freedom</h2>
                     </div>
                 </div>
 

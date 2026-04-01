@@ -301,13 +301,47 @@ const Drawer = ({ open, onClose, selected, images, setImages, loading, onApprove
                         {selected.ExpModeDesc === 'Hotel' && <HotelCard expense={selected} />}
                         {selected.ExpModeDesc === 'Food' && <FoodCard expense={selected} />}
 
-                        {/* Remarks */}
-                        {selected.VisitRemarks?.trim() && (
-                            <div className="p-3 rounded-xl bg-orange-50 border border-orange-100">
-                                <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-                                    <AlertCircle size={10} /> Remarks
+                        {/* Remarks & Reasons */}
+                        {(selected.VisitRemarks?.trim() || selected.Reason?.trim() || selected.reject_reason?.trim() || selected.PaymentRemarks?.trim()) && (
+                            <div className="p-3.5 rounded-2xl bg-orange-50/70 border border-orange-100 space-y-3">
+                                <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest flex items-center gap-1.5">
+                                    <AlertCircle size={10} /> Claim Intelligence & Remarks
                                 </p>
-                                <p className="text-xs text-gray-700 font-medium whitespace-pre-wrap">{selected.VisitRemarks}</p>
+                                
+                                {selected.Reason && (
+                                    <div className="bg-white/80 p-2.5 rounded-xl border border-orange-100/50 shadow-sm">
+                                        <p className="text-[8px] font-black text-orange-400 uppercase tracking-wider mb-1">Visit Reason / Category</p>
+                                        <p className="text-[11px] text-gray-900 font-extrabold flex items-center gap-1.5 leading-tight">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
+                                            {selected.Reason}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {selected.VisitRemarks && (
+                                    <div className="bg-white/80 p-2.5 rounded-xl border border-orange-100/50 shadow-sm">
+                                        <p className="text-[8px] font-black text-orange-400 uppercase tracking-wider mb-1">Visit Remarks</p>
+                                        <div className="text-[11px] text-gray-700 font-medium whitespace-pre-wrap flex gap-1.5 leading-relaxed">
+                                            <span className="text-orange-300">"</span>
+                                            {selected.VisitRemarks}
+                                            <span className="text-orange-300">"</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {selected.reject_reason && (
+                                    <div className="bg-red-50 p-2.5 rounded-xl border border-red-100 shadow-sm">
+                                        <p className="text-[8px] font-black text-red-500 uppercase tracking-wider mb-1">Manager Rejection Reason</p>
+                                        <p className="text-[11px] text-red-700 font-bold leading-tight">{selected.reject_reason}</p>
+                                    </div>
+                                )}
+
+                                {selected.PaymentRemarks && (
+                                    <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-100 shadow-sm">
+                                        <p className="text-[8px] font-black text-emerald-600 uppercase tracking-wider mb-1">Finance / Payment Remarks</p>
+                                        <p className="text-[11px] text-emerald-800 font-bold leading-tight">{selected.PaymentRemarks}</p>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -469,6 +503,10 @@ const ExpenseManagement = () => {
             const res = await api.get('/v1/admin/expense/get-expense-by-id', {
                 params: { ExpenseReqId: row.ExpenseReqId }
             });
+            // Update selected with full detail from response
+            const fullDetail = res.data?.data?.data?.[0];
+            if (fullDetail) setSelected(fullDetail);
+            
             setExpenseImages(res.data?.data?.docsResult || []);
         } catch { /* silent */ }
         setDetailLoading(false);
