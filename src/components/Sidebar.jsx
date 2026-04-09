@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext';
 const ALL_NAV = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', section: 'core' },
     { name: 'Visit Plans', icon: MapPin, path: '/visits', section: 'core' },
+    { name: 'Visit Approval', icon: FileCheck, path: '/visit-approval', section: 'core' },
     { name: 'Attendance', icon: Clock, path: '/attendance', section: 'core' },
     { name: 'Reports', icon: FileBarChart, path: '/reports', section: 'core' },
     { name: 'Leave Management', icon: CalendarDays, path: 'http://14.99.179.133/lms', section: 'core', external: true },

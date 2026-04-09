@@ -19,6 +19,7 @@ import ExpensePaymentHistory from './pages/ExpensePaymentHistory';
 import Attendance from './pages/Attendance';
 import AttendanceReport from './pages/AttendanceReport';
 import Profile from './pages/Profile';
+import VisitApproval from './pages/Visit/VisitApproval';
 
 const PrivateRoute = ({ children }) => {
   const { token } = useAuth();
@@ -43,6 +44,7 @@ function AppRoutes() {
       {/* Main */}
       <Route path="/dashboard" element={<W><Dashboard /></W>} />
       <Route path="/visits" element={<W><Visit /></W>} />
+      <Route path="/visit-approval" element={<W><VisitApproval /></W>} />
       <Route path="/correction-requests" element={<W><MissPunchRequests /></W>} />
       <Route path="/attendance" element={<W><Attendance /></W>} />
       <Route path="/reports" element={<W><AttendanceReport /></W>} />
