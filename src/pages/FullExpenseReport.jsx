@@ -27,7 +27,7 @@ const FullExpenseReport = () => {
 
     const [filter, setFilter] = useState({
         emp: 'all',
-        startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+        startDate: `${new Date().getFullYear()}-01-01`,
         endDate: new Date().toISOString().split('T')[0],
         status: 'all',
         search: ''

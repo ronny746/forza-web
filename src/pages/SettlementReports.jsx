@@ -103,7 +103,7 @@ const SettlementReports = () => {
     const tableStyles = useTableStyles();
     const [filter, setFilter] = useState({
         emp: 'all',
-        startDate: getMonthDates().startDate,
+        startDate: `${new Date().getFullYear()}-01-01`,
         endDate: getMonthDates().endDate,
         status: 'all',
         paymentStatus: 'paid',

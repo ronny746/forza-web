@@ -525,8 +525,8 @@ const ExpenseHR = () => {
     const [exportLoading, setExportLoading] = useState(false);
     const [tick, setTick] = useState(false);
     const [filterModal, setFilterModal] = useState(false);
-    const [dateDraft, setDateDraft] = useState(getMonthDates());
-    const [dateFilter, setDateFilter] = useState(getMonthDates());
+    const [dateDraft, setDateDraft] = useState({ ...getMonthDates(), startDate: `${new Date().getFullYear()}-01-01` });
+    const [dateFilter, setDateFilter] = useState({ ...getMonthDates(), startDate: `${new Date().getFullYear()}-01-01` });
 
     // drawer
     const [drawer, setDrawer] = useState(false);

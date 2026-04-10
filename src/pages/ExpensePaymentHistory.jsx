@@ -183,7 +183,7 @@ const ExpensePaymentHistory = () => {
     const [search, setSearch] = useState('');
     const [paymentFilter, setPaymentFilter] = useState('all');
     const [empFilter, setEmpFilter] = useState('all');
-    const [dateFilter, setDateFilter] = useState(getMonthDates());
+    const [dateFilter, setDateFilter] = useState({ ...getMonthDates(), startDate: `${new Date().getFullYear()}-01-01` });
 
     const [page, setPage] = useState(0);
     const [perPage, setPerPage] = useState(10);
