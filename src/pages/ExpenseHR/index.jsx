@@ -48,10 +48,10 @@ const shortId = (id) => {
 //   ExpenseStatusChangeByHr: 0              → Hold
 //   ExpenseStatusChangeByHr: 1              → Released
 const HR_FILTERS = [
-    { value: 'pending', label: 'Pending Verification' },
-    { value: 'hold', label: 'On Hold / Audit' },
-    { value: 'released', label: 'Released / Approved' },
-    { value: 'all', label: 'All Expenses' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'hold', label: 'On Hold' },
+
+
 ];
 
 const applyHrFilter = (rows, hr) => {
@@ -139,15 +139,15 @@ const exportExcelFull = async (dateFilter, empFilter, searchFilter = '', setExpo
 
         const ws = XLSX.utils.json_to_sheet(rows.map((r, i) => ({
             '#': i + 1,
-            'Expense Date': r.ExpenseDate || (r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-GB') : '—'),
-            'Emp Code': r.EMPCode || '—',
-            'Employee Name': `${r.FirstName || ''} ${r.LastName || ''}`,
-            'Expense Type': r.ExpModeDesc || r.ExpenseType || '—',
+            'Expense Date': r.ExpenseDate || r.Date || '—',
+            'Emp Code': r.EmployeeId || r.EMPCode || '—',
+            'Employee Name': r.EmployeeName || `${r.FirstName || ''} ${r.LastName || ''}`.trim(),
+            'Expense Type': r.ExpenseType || r.ExpModeDesc || '—',
             'Details': getExpenseDetails(r),
-            'Amount': Number(r.amount || 0),
+            'Amount': Number(r.TotalAmount || r.amount || 0),
             'From': r.VisitFrom || '—',
             'To': r.VisitTo || '—',
-            'Purpose': r.VisitPurpose || '—',
+            'Purpose': r.Purpose || r.VisitPurpose || '—',
             'Status': r.HrStatus || 'Pending'
         })));
         const wb = XLSX.utils.book_new();
@@ -904,16 +904,23 @@ const ExpenseHR = () => {
             <Modal isOpen={filterModal} onClose={() => setFilterModal(false)} title="Date Range Filter" size="sm">
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="input-label">Start Date</label>
-                            <input type="date" value={dateDraft.startDate}
-                                onChange={e => setDateDraft(p => ({ ...p, startDate: e.target.value }))} className="input-field" />
-                        </div>
-                        <div>
-                            <label className="input-label">End Date</label>
-                            <input type="date" value={dateDraft.endDate}
-                                onChange={e => setDateDraft(p => ({ ...p, endDate: e.target.value }))} className="input-field" />
-                        </div>
+                        {(() => {
+                            const curYearMin = `${new Date().getFullYear()}-01-01`;
+                            return (
+                                <>
+                                    <div>
+                                        <label className="input-label">Start Date</label>
+                                        <input type="date" value={dateDraft.startDate} min={curYearMin}
+                                            onChange={e => setDateDraft(p => ({ ...p, startDate: e.target.value }))} className="input-field" />
+                                    </div>
+                                    <div>
+                                        <label className="input-label">End Date</label>
+                                        <input type="date" value={dateDraft.endDate} min={curYearMin}
+                                            onChange={e => setDateDraft(p => ({ ...p, endDate: e.target.value }))} className="input-field" />
+                                    </div>
+                                </>
+                            );
+                        })()}
                     </div>
                     <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
                         <button onClick={() => { const d = getMonthDates(); setDateDraft(d); setDateFilter(d); setFilterModal(false); }}

@@ -157,7 +157,21 @@ const DetailDrawer = ({ row, onClose }) => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 const ExpensePaymentHistory = () => {
     const { user } = useAuth();
-    const tableStyles = useTableStyles();
+    const globalTableStyles = useTableStyles();
+    const tableStyles = {
+        ...globalTableStyles,
+        pagination: {
+            style: {
+                display: 'flex',
+                fontSize: '12px',
+                fontWeight: '700',
+                color: '#64748b',
+                backgroundColor: '#ffffff',
+                borderTop: '1px solid #f1f5f9',
+                minHeight: '60px',
+            },
+        },
+    };
 
     const [rows, setRows] = useState([]);
     const [summary, setSummary] = useState(null);
@@ -170,8 +184,6 @@ const ExpensePaymentHistory = () => {
     const [paymentFilter, setPaymentFilter] = useState('all');
     const [empFilter, setEmpFilter] = useState('all');
     const [dateFilter, setDateFilter] = useState(getMonthDates());
-    const [filterModal, setFilterModal] = useState(false);
-    const [dateDraft, setDateDraft] = useState(getMonthDates());
 
     const [page, setPage] = useState(0);
     const [perPage, setPerPage] = useState(10);
@@ -200,8 +212,8 @@ const ExpensePaymentHistory = () => {
                     startDate: dateFilter.startDate,
                     endDate: dateFilter.endDate,
                     EMPCode: empFilter,
-                    pageIndex: page,
-                    pageSize: perPage,
+                    pageIndex: 0,
+                    pageSize: 5000,
                     searchKey: search
                 }
             });
@@ -216,7 +228,7 @@ const ExpensePaymentHistory = () => {
 
     useEffect(() => {
         fetchData();
-    }, [tick, paymentFilter, empFilter, dateFilter, page, perPage, search]);
+    }, [tick, paymentFilter, empFilter, dateFilter, search]);
 
     useEffect(() => {
         api.get('/v1/admin/user_details/get-all-user')
@@ -409,7 +421,7 @@ const ExpensePaymentHistory = () => {
             )
         },
         {
-            name: 'Financials', minWidth: '140px',
+            name: 'Financials', minWidth: '100px',
             cell: r => (
                 <div className="py-1">
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Bill: <span className="text-gray-900">₹{r.TotalAmount}</span></p>
@@ -420,7 +432,7 @@ const ExpensePaymentHistory = () => {
         },
         { name: 'Status', width: '90px', center: true, cell: r => <PaymentStatusBadge status={r.PaymentStatus} /> },
         {
-            name: 'Expense Date', width: '110px', selector: r => r.ExpenseDate,
+            name: 'Expense Fill Date', width: '150px', selector: r => r.ExpenseDate,
             cell: r => <span className="text-[11px] font-bold text-gray-600">{r.ExpenseDate}</span>
         },
         {
@@ -509,13 +521,29 @@ const ExpensePaymentHistory = () => {
                     </select>
                 </div>
 
-                <div className="h-8 w-px bg-gray-100 mx-1 hidden sm:block" />
-
-                <button onClick={() => setFilterModal(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white border border-gray-100 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all shadow-sm">
-                    <Calendar size={14} className="text-primary-500" />
-                    Dates
-                </button>
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
+                        {(() => {
+                            const curYearMin = `${new Date().getFullYear()}-01-01`;
+                            return (
+                                <>
+                                    <div className="flex items-center gap-2 px-2 border-r border-gray-200">
+                                        <Calendar size={14} className="text-primary-500" />
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">From</span>
+                                    </div>
+                                    <input type="date" value={dateFilter.startDate} min={curYearMin} onChange={e => { setDateFilter(prev => ({ ...prev, startDate: e.target.value })); setPage(0); }}
+                                        className="bg-transparent border-none text-xs font-bold text-gray-700 focus:ring-0 py-1" />
+                                    <span className="text-gray-300 font-bold px-1">→</span>
+                                    <div className="flex items-center gap-2 px-2 border-l border-gray-200">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">To</span>
+                                    </div>
+                                    <input type="date" value={dateFilter.endDate} min={curYearMin} onChange={e => { setDateFilter(prev => ({ ...prev, endDate: e.target.value })); setPage(0); }}
+                                        className="bg-transparent border-none text-xs font-bold text-gray-700 focus:ring-0 py-1" />
+                                </>
+                            );
+                        })()}
+                    </div>
+                </div>
 
                 <div className="flex gap-2 ml-auto">
                     {selectedRows.length > 0 && (
@@ -526,12 +554,12 @@ const ExpensePaymentHistory = () => {
                     )}
                     <button onClick={exportData}
                         className="flex items-center gap-2 px-5 py-2.5 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition-all">
-                        <FileSpreadsheet size={16} /> Excel
+                        <FileSpreadsheet size={16} /> Release Expense
                     </button>
-                    <button onClick={exportPDF}
+                    {/* <button onClick={exportPDF}
                         className="flex items-center gap-2 px-5 py-2.5 rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 text-sm font-bold hover:bg-rose-100 transition-all">
                         <FileDown size={16} /> PDF
-                    </button>
+                    </button> */}
                     <button onClick={() => setTick(!tick)}
                         className="p-3 rounded-2xl bg-white border border-gray-100 text-gray-400 hover:text-primary-600 hover:bg-gray-50 transition-all shadow-sm active:rotate-180 duration-500">
                         <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -550,6 +578,9 @@ const ExpensePaymentHistory = () => {
                     selectableRows={paymentFilter !== 'Paid'}
                     onSelectedRowsChange={({ selectedRows }) => setSelectedRows(selectedRows)}
                     clearSelectedRows={clearSelectedRows}
+                    pagination
+                    paginationPerPage={10}
+                    paginationRowsPerPageOptions={[10, 20, 50, 100, 500]}
                     responsive
                     noDataComponent={<div className="p-32 text-center flex flex-col items-center gap-3">
                         <div className="w-16 h-16 rounded-3xl bg-gray-50 flex items-center justify-center text-gray-200 mb-2">
@@ -560,22 +591,10 @@ const ExpensePaymentHistory = () => {
                     </div>}
                 />
 
-                <div className="p-5 border-t border-gray-50 flex items-center justify-between bg-gray-50/30">
-                    <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">
-                        Total {total} entries found
+                <div className="p-4 border-t border-gray-50 bg-gray-50/10 px-6">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                        Total {total} entries found across all pages
                     </p>
-                    <ReactPaginate
-                        previousLabel={'←'} nextLabel={'→'}
-                        pageCount={total ? Math.ceil(total / perPage) : 1}
-                        onPageChange={({ selected }) => setPage(selected)}
-                        containerClassName={'flex gap-2 items-center'}
-                        pageLinkClassName={'w-9 h-9 flex items-center justify-center rounded-xl text-xs font-bold text-gray-500 hover:bg-white border border-transparent transition-all'}
-                        activeLinkClassName={'!bg-white !text-primary-600 border border-primary-100 shadow-sm'}
-                        previousLinkClassName={'w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:bg-white'}
-                        nextLinkClassName={'w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:bg-white'}
-                        disabledClassName={'opacity-20 pointer-events-none'}
-                        forcePage={page}
-                    />
                 </div>
             </div>
 
@@ -702,29 +721,7 @@ const ExpensePaymentHistory = () => {
                 </div>
             </Modal>
 
-            {/* Date Filter Modal */}
-            <Modal isOpen={filterModal} onClose={() => setFilterModal(false)} title="Custom Dates">
-                <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Start Date</label>
-                            <input type="date" value={dateDraft.startDate} onChange={e => setDateDraft(p => ({ ...p, startDate: e.target.value }))}
-                                className="w-full px-5 py-3 rounded-2xl border border-gray-100 bg-gray-50 text-sm focus:outline-none focus:bg-white focus:ring-4 ring-primary-50" />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">End Date</label>
-                            <input type="date" value={dateDraft.endDate} onChange={e => setDateDraft(p => ({ ...p, endDate: e.target.value }))}
-                                className="w-full px-5 py-3 rounded-2xl border border-gray-100 bg-gray-50 text-sm focus:outline-none focus:bg-white focus:ring-4 ring-primary-50" />
-                        </div>
-                    </div>
-                    <div className="flex gap-3">
-                        <button onClick={() => { setDateFilter(getMonthDates()); setDateDraft(getMonthDates()); setFilterModal(false); }}
-                            className="flex-1 py-4 rounded-2xl bg-gray-50 text-gray-500 font-bold hover:bg-gray-100">Reset</button>
-                        <button onClick={() => { setDateFilter(dateDraft); setFilterModal(false); setPage(0); }}
-                            className="flex-[2] py-4 rounded-2xl bg-primary-600 text-white font-black shadow-xl shadow-primary-100 hover:bg-primary-700">Apply Filter</button>
-                    </div>
-                </div>
-            </Modal>
+
         </div>
     );
 };

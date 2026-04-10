@@ -24,10 +24,33 @@ const getMonthDates = () => {
 
 const fmtDate = (s) => {
     if (!s) return '—';
+    // If it's already a date-like string in DD-MM-YYYY or DD/MM/YYYY format
+    if (typeof s === 'string' && (s.includes('-') || s.includes('/'))) {
+        const parts = s.split(/[-/]/);
+        if (parts.length >= 3) {
+            // Check if it's YYYY-MM-DD
+            if (parts[0].length === 4) {
+                const [y, m, d] = parts;
+                const dateObj = new Date(y, m - 1, d.split(' ')[0]);
+                if (!isNaN(dateObj.getTime())) {
+                    const p = n => n.toString().padStart(2, '0');
+                    return `${p(dateObj.getDate())}/${p(dateObj.getMonth() + 1)}/${dateObj.getFullYear()}`;
+                }
+            } else {
+                // Assume DD-MM-YYYY
+                const [d, m, y] = parts;
+                const dateObj = new Date(y.split(' ')[0], m - 1, d);
+                if (!isNaN(dateObj.getTime())) {
+                    const p = n => n.toString().padStart(2, '0');
+                    return `${p(dateObj.getDate())}/${p(dateObj.getMonth() + 1)}/${dateObj.getFullYear()}`;
+                }
+            }
+        }
+    }
     const d = new Date(s);
     if (isNaN(d.getTime())) return s;
     const p = n => n.toString().padStart(2, '0');
-    return `${p(d.getUTCDate())}-${p(d.getUTCMonth() + 1)}-${d.getUTCFullYear()}`;
+    return `${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
 };
 
 const fmtDateTime = (s) => {
@@ -78,19 +101,17 @@ const StatCard = ({ title, value, icon: Icon, color }) => (
 
 const SettlementReports = () => {
     const tableStyles = useTableStyles();
-    const [filterType, setFilterType] = useState('expense'); // 'expense' or 'payment'
     const [filter, setFilter] = useState({
         emp: 'all',
         startDate: getMonthDates().startDate,
         endDate: getMonthDates().endDate,
-        fromPaidDate: '',
-        toPaidDate: '',
         status: 'all',
-        paymentStatus: 'all',  // ✅ नया - Paid/Unpaid/PartialPaid
+        paymentStatus: 'paid',
         search: ''
     });
+    const [selectedPaidAt, setSelectedPaidAt] = useState('all'); // Separate state to prevent loop
     const [reportData, setReportData] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [exportLoading, setExportLoading] = useState(false);
     const [employees, setEmployees] = useState([]);
     const [page, setPage] = useState(0);
@@ -101,9 +122,6 @@ const SettlementReports = () => {
         api.get('/v1/admin/user_details/get-all-user')
             .then(res => setEmployees(res.data?.data?.data?.userData || []))
             .catch(() => { });
-
-        // Fetch initially
-        fetchReport();
     }, []);
 
     // Auto-fetch when filter changes
@@ -112,7 +130,12 @@ const SettlementReports = () => {
             fetchReport();
         }, 500);
         return () => clearTimeout(timer);
-    }, [filter, filterType]);
+    }, [filter]);
+
+    // Reset pagination when sub-filters change
+    useEffect(() => {
+        setPage(0);
+    }, [selectedPaidAt]);
 
     const fetchReport = async () => {
         setLoading(true);
@@ -127,14 +150,8 @@ const SettlementReports = () => {
                 empCode: filter.emp === 'all' ? '' : filter.emp,
             };
 
-            // Add dates based on filter type
-            if (filterType === 'expense') {
-                params.startDate = filter.startDate;
-                params.endDate = filter.endDate;
-            } else {
-                params.fromPaidDate = filter.fromPaidDate;
-                params.toPaidDate = filter.toPaidDate;
-            }
+            params.startDate = filter.startDate;
+            params.endDate = filter.endDate;
 
             const res = await api.get(endpoint, { params });
 
@@ -179,6 +196,7 @@ const SettlementReports = () => {
 
             setReportData(rows);
             setTotal(rows.length);
+            setSelectedPaidAt('all'); // Reset choice on new data
             if (!rows.length) toast.info('No results for this criteria');
         } catch (error) {
             console.error(error);
@@ -194,15 +212,21 @@ const SettlementReports = () => {
             const params = {
                 searchKey: filter.search,
                 empCode: filter.emp,
-                paymentStatus: filter.paymentStatus,  // ✅ Add payment status
+                paymentStatus: filter.paymentStatus,
+                startDate: filter.startDate,
+                endDate: filter.endDate
             };
 
-            if (filterType === 'expense') {
-                params.startDate = filter.startDate;
-                params.endDate = filter.endDate;
-            } else {
-                params.fromPaidDate = filter.fromPaidDate;
-                params.toPaidDate = filter.toPaidDate;
+            if (selectedPaidAt !== 'all') {
+                // Robust split for DD-MM-YYYY or DD/MM/YYYY
+                const pts = selectedPaidAt.split(/[-/]/);
+                let cleanDate = selectedPaidAt;
+                if (pts.length >= 3) {
+                    const [d, m, y] = pts;
+                    cleanDate = `${y}-${m}-${d}`;
+                }
+                params.fromPaidDate = cleanDate;
+                params.toPaidDate = cleanDate;
             }
 
             const res = await api.get(isWatermark ? '/v1/admin/expense/pdf-with-watermark' : '/v1/admin/expense/pdf-report', {
@@ -222,10 +246,10 @@ const SettlementReports = () => {
     };
 
     const exportExcel = () => {
-        if (!reportData.length) return toast.warning('No data to export');
+        if (!finalReportData.length) return toast.warning('No data to export');
         setExportLoading(true);
         try {
-            const mapped = reportData.map((r, i) => {
+            const mapped = finalReportData.map((r, i) => {
                 const total = r.TotalAmount || r.amount || 0;
                 const paid = r.PaidAmount || 0;  // Now coming from backend
                 const pending = r.PendingAmount || (Number(total) - Number(paid)) || 0;
@@ -242,7 +266,6 @@ const SettlementReports = () => {
                     'Paid Amount': Number(paid),
                     'Pending Amount': Number(pending),
                     'Paid At': r.PaidAt || '—',
-                    'Payment Status': r.PaymentStatus || 'Unpaid',
                     'HR Status': r.HrStatus || 'Pending'
                 };
             });
@@ -251,14 +274,31 @@ const SettlementReports = () => {
             XLSX.utils.book_append_sheet(wb, ws, 'Report');
             const selectedEmp = employees.find(e => e.EMPCode === filter.emp);
             const namePart = selectedEmp ? `${selectedEmp.FirstName}_${selectedEmp.LastName}`.replace(/\s+/g, '_') : 'Global';
-            XLSX.writeFile(wb, `Settlement_${namePart}_${filterType === 'expense' ? filter.startDate : filter.fromPaidDate}.xlsx`);
+            XLSX.writeFile(wb, `Settlement_${namePart}_${filter.startDate}.xlsx`);
             toast.success('Excel exported ✓');
         } catch { toast.error('Excel export failed'); }
         setExportLoading(false);
     };
 
-    const totalAmount = reportData.reduce((acc, r) => acc + Number(r.amount || r.TotalAmount || 0), 0);
-    const paidAmount = reportData.reduce((acc, r) => acc + Number(r.PaidAmount || 0), 0);
+    const finalReportData = selectedPaidAt === 'all'
+        ? reportData
+        : reportData.filter(r => r.PaidAt && r.PaidAt.split(' ')[0] === selectedPaidAt);
+
+    const uniquePaidDates = Array.from(new Set(
+        reportData
+            .filter(r => r.PaidAt)
+            .map(r => r.PaidAt.split(' ')[0])
+    )).sort((a, b) => {
+        const parseD = (s) => {
+            const pts = s.split(/[-/]/);
+            if (pts[0].length === 4) return new Date(pts[0], pts[1] - 1, pts[2]);
+            return new Date(pts[2], pts[1] - 1, pts[0]);
+        };
+        return parseD(b) - parseD(a);
+    });
+
+    const totalAmount = finalReportData.reduce((acc, r) => acc + Number(r.amount || r.TotalAmount || 0), 0);
+    const paidAmount = finalReportData.reduce((acc, r) => acc + Number(r.PaidAmount || 0), 0);
     const pendingAmount = totalAmount - paidAmount;
 
     return (
@@ -272,35 +312,19 @@ const SettlementReports = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <StatCard title="Total Records" value={reportData.length} icon={Database} color="bg-blue-500" />
+                <StatCard title="Total Records" value={finalReportData.length} icon={Database} color="bg-blue-500" />
                 <StatCard title="Total Amount" value={`₹${totalAmount.toLocaleString('en-IN')}`} icon={IndianRupee} color="bg-emerald-500" />
                 <StatCard title="Paid Amount" value={`₹${paidAmount.toLocaleString('en-IN')}`} icon={CheckCircle2} color="bg-green-500" />
                 <StatCard title="Pending Amount" value={`₹${pendingAmount.toLocaleString('en-IN')}`} icon={Clock} color="bg-orange-500" />
             </div>
 
+
+
             <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
-                {/* Filter Type Toggle */}
                 <div className="flex gap-2 border-b border-gray-100 pb-4">
-                    <button
-                        onClick={() => setFilterType('expense')}
-                        className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterType === 'expense'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                    >
-                        <Calendar size={14} className="inline mr-2" />
-                        Expense Date Range
-                    </button>
-                    <button
-                        onClick={() => setFilterType('payment')}
-                        className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${filterType === 'payment'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                    >
-                        <Clock size={14} className="inline mr-2" />
-                        Payment Date Range
-                    </button>
+                    <div className="px-4 py-2 rounded-lg font-black text-xs bg-gray-900 text-white uppercase tracking-widest flex items-center gap-2">
+                        <Filter size={14} /> Report Filters & Parameters
+                    </div>
                 </div>
 
                 {/* Filters Grid */}
@@ -321,56 +345,37 @@ const SettlementReports = () => {
                         </select>
                     </div>
 
-                    {/* Conditional Date Ranges */}
-                    {filterType === 'expense' ? (
-                        <div className="space-y-1.5 md:col-span-2">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Expense Date Range</label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <input
-                                        type="date"
-                                        value={filter.startDate}
-                                        onChange={e => setFilter({ ...filter, startDate: e.target.value })}
-                                        className="w-full p-2.5 rounded-xl bg-gray-50 border-none text-xs font-bold focus:ring-2 focus:ring-blue-500"
-                                    />
-                                    <p className="text-[9px] text-gray-400 mt-1">From</p>
-                                </div>
-                                <div>
-                                    <input
-                                        type="date"
-                                        value={filter.endDate}
-                                        onChange={e => setFilter({ ...filter, endDate: e.target.value })}
-                                        className="w-full p-2.5 rounded-xl bg-gray-50 border-none text-xs font-bold focus:ring-2 focus:ring-blue-500"
-                                    />
-                                    <p className="text-[9px] text-gray-400 mt-1">To</p>
-                                </div>
-                            </div>
+                    {/* Report Period Filter */}
+                    <div className="space-y-1.5 md:col-span-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Report Period (from-to)</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {(() => {
+                                const currentYearMin = `${new Date().getFullYear()}-01-01`;
+                                return (
+                                    <>
+                                        <div>
+                                            <input
+                                                type="date"
+                                                min={currentYearMin}
+                                                value={filter.startDate}
+                                                onChange={e => setFilter({ ...filter, startDate: e.target.value })}
+                                                className="w-full p-2.5 rounded-xl bg-gray-50 border-none text-xs font-bold focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <input
+                                                type="date"
+                                                min={currentYearMin}
+                                                value={filter.endDate}
+                                                onChange={e => setFilter({ ...filter, endDate: e.target.value })}
+                                                className="w-full p-2.5 rounded-xl bg-gray-50 border-none text-xs font-bold focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </div>
-                    ) : (
-                        <div className="space-y-1.5 md:col-span-2">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Payment Date Range</label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <input
-                                        type="date"
-                                        value={filter.fromPaidDate}
-                                        onChange={e => setFilter({ ...filter, fromPaidDate: e.target.value })}
-                                        className="w-full p-2.5 rounded-xl bg-gray-50 border-none text-xs font-bold focus:ring-2 focus:ring-blue-500"
-                                    />
-                                    <p className="text-[9px] text-gray-400 mt-1">From</p>
-                                </div>
-                                <div>
-                                    <input
-                                        type="date"
-                                        value={filter.toPaidDate}
-                                        onChange={e => setFilter({ ...filter, toPaidDate: e.target.value })}
-                                        className="w-full p-2.5 rounded-xl bg-gray-50 border-none text-xs font-bold focus:ring-2 focus:ring-blue-500"
-                                    />
-                                    <p className="text-[9px] text-gray-400 mt-1">To</p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                    </div>
 
                     {/* <div className="space-y-1.5">
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Status</label>
@@ -386,19 +391,7 @@ const SettlementReports = () => {
                         </select>
                     </div> */}
 
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Payment Status</label>
-                        <select
-                            value={filter.paymentStatus}
-                            onChange={e => setFilter({ ...filter, paymentStatus: e.target.value })}
-                            className="w-full p-2.5 rounded-xl bg-gray-50 border-none text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="all">All Payment</option>
-                            <option value="paid">Paid</option>
-                            <option value="partialpaid">Partial Paid</option>
-                            <option value="unpaid">Unpaid</option>
-                        </select>
-                    </div>
+
 
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Search</label>
@@ -415,6 +408,39 @@ const SettlementReports = () => {
                     </div>
                 </div>
 
+                {/* Paid Date Quick Filter Pins (Integrated) */}
+                {uniquePaidDates.length > 0 && (
+                    <div className="pt-4 border-t border-gray-50">
+                        <div className="flex items-center gap-2 mb-3 px-1">
+                            <Clock size={14} className="text-blue-600" />
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Payment Slots Found ({uniquePaidDates.length})</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => setSelectedPaidAt('all')}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${selectedPaidAt === 'all'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100'
+                                    : 'bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100'
+                                    }`}
+                            >
+                                Show All
+                            </button>
+                            {uniquePaidDates.map(date => (
+                                <button
+                                    key={date}
+                                    onClick={() => setSelectedPaidAt(date)}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${selectedPaidAt === date
+                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-100'
+                                        : 'bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100'
+                                        }`}
+                                >
+                                    {fmtDate(date)}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Export Buttons */}
                 <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-50">
                     <button
@@ -427,13 +453,13 @@ const SettlementReports = () => {
                         onClick={() => downloadPDF(false)}
                         className="px-6 py-2.5 rounded-xl bg-gray-900 text-white font-bold text-sm flex items-center gap-2 hover:bg-black transition-colors"
                     >
-                        <FileDown size={16} /> Export PDF
+                        <FileDown size={16} /> Expense Summary Report
                     </button>
                     <button
                         onClick={() => downloadPDF(true)}
                         className="px-6 py-2.5 rounded-xl bg-gray-900 text-white font-bold text-sm flex items-center gap-2 hover:bg-black transition-colors"
                     >
-                        <ShieldCheck size={16} /> Export with Images
+                        <ShieldCheck size={16} /> Expense Summary Report with Images
                     </button>
                 </div>
             </div>
@@ -443,11 +469,16 @@ const SettlementReports = () => {
                 <div className="table-search-bar">
                     <div className="flex items-center gap-2">
                         <span className="badge badge-neutral">
-                            <BarChart3 size={12} /> {reportData.length} records
+                            <BarChart3 size={12} /> {finalReportData.length} records
                         </span>
+                        {selectedPaidAt !== 'all' && (
+                            <span className="badge border border-emerald-100 bg-emerald-50 text-emerald-700">
+                                <FileCheck size={12} /> Filtered: {fmtDate(selectedPaidAt)}
+                            </span>
+                        )}
                         {loading && (
-                            <span className="text-sm text-blue-600 font-semibold flex items-center gap-1">
-                                <RefreshCw size={12} className="animate-spin" /> Updating...
+                            <span className="text-sm text-blue-600 font-semibold flex items-center gap-1 text-[11px]">
+                                <RefreshCw size={12} className="animate-spin" /> Fetching...
                             </span>
                         )}
                     </div>
@@ -513,18 +544,14 @@ const SettlementReports = () => {
                             width: '160px',
                             cell: r => <span className="text-[11px] font-medium">{r.PaidAt || '—'}</span>
                         },
-                        {
-                            name: 'Payment Status',
-                            cell: r => <PaymentStatusBadge status={r.PaymentStatus} />,
-                            width: '130px'
-                        },
+
                         {
                             name: 'HR Status',
                             cell: r => <HrBadge row={r} />,
                             width: '110px'
                         },
                     ]}
-                    data={reportData.slice(page * perPage, (page + 1) * perPage)}
+                    data={finalReportData.slice(page * perPage, (page + 1) * perPage)}
                     noHeader
                     responsive
                     highlightOnHover
@@ -535,7 +562,7 @@ const SettlementReports = () => {
                 />
 
                 <TablePagination
-                    total={total}
+                    total={finalReportData.length}
                     current={page}
                     perPage={perPage}
                     onPageChange={setPage}

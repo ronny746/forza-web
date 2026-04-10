@@ -18,14 +18,15 @@ const ALL_NAV = [
     { name: 'Attendance', icon: Clock, path: '/attendance', section: 'core' },
     { name: 'Reports', icon: FileBarChart, path: '/reports', section: 'core' },
     { name: 'Leave Management', icon: CalendarDays, path: 'http://14.99.179.133/lms', section: 'core', external: true },
-    { name: 'Correction Requests', icon: ClipboardList, path: '/correction-requests', section: 'core' },
+    { name: 'Miss Punchs', icon: ClipboardList, path: '/correction-requests', section: 'core' },
     { name: 'My Expenses', icon: Receipt, path: '/my-expenses', section: 'expense' },
     { name: 'User Directory', icon: Users, path: '/users', section: 'admin' },
     { name: 'User Registration', icon: UserPlus, path: '/registration', section: 'admin' },
     { name: 'System Settings', icon: UserCog, path: '/settings', section: 'admin' },
-    { name: 'HR Expenses', icon: FileCheck, path: '/hr-expenses', section: 'hr' },
-    { name: 'Payment History', icon: CreditCard, path: '/payments', section: 'hr' },
-    { name: 'Settlement Reports', icon: FileBarChart, path: '/settlements', section: 'hr' },
+    { name: 'Pending Expenses', icon: FileCheck, path: '/hr-expenses', section: 'hr' },
+    { name: 'Released Expenses', icon: CreditCard, path: '/payments', section: 'hr' },
+    { name: 'Paid Expenses', icon: FileBarChart, path: '/settlements', section: 'hr' },
+    { name: 'Full Reports', icon: BarChart2, path: '/full-reports', section: 'hr' },
 ];
 
 const SECTION_LABELS = { core: 'Navigation', expense: 'Personal', admin: 'Administration', hr: 'HR Desk' };
