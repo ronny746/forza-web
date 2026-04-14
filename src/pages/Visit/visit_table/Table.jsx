@@ -51,47 +51,81 @@ const Table = ({ visitSummaryData, setVisitSummaryData }) => {
     const [currentPage, setCurrentPage] = useState(0);
     const [excelFile, setExcelFile] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
+    const [validatedData, setValidatedData] = useState(null);
 
     const handleSearch = (event) => {
         setSearchValue(event.target.value);
     };
 
-    const formatDate1 = (dateString) => {
-        return moment(dateString, ['DD/MM/YYYY', 'DD-MM-YYYY']).format('DD-MM-YYYY');
+    // Format date from Excel
+    const formatDateFromExcel = (dateValue) => {
+        if (!dateValue) return '';
+
+        // If it's already a string in DD/MM/YYYY or DD-MM-YYYY format
+        if (typeof dateValue === 'string') {
+            const parsed = moment(dateValue, ['DD/MM/YYYY', 'DD-MM-YYYY', 'YYYY-MM-DD']);
+            if (parsed.isValid()) {
+                return parsed.format('DD-MM-YYYY');
+            }
+        }
+
+        // If it's a Date object or timestamp
+        if (dateValue instanceof Date) {
+            return moment(dateValue).format('DD-MM-YYYY');
+        }
+
+        // Try to parse as number (Excel serial date)
+        if (typeof dateValue === 'number') {
+            const date = moment('1899-12-30').add(dateValue, 'days');
+            if (date.isValid()) {
+                return date.format('DD-MM-YYYY');
+            }
+        }
+
+        return '';
     };
 
     const validateDate = (FromDate, ToDate) => {
-        if (!excelFile) {
+        if (!excelFile || excelFile.length === 0) {
             toast.error('Please upload visit file');
-            return 0;
+            return null;
         }
         if (!FromDate || !ToDate) {
             toast.error('Please choose From Date and To Date');
-            return 0;
+            return null;
         }
 
         const mFrom = moment(FromDate).startOf('day');
         const mTo = moment(ToDate).endOf('day');
 
+        // Format dates in excel file
         const updatedVisits = excelFile.map((visit) => ({
             ...visit,
-            VisitDate: formatDate1(visit.VisitDate),
+            VisitDate: formatDateFromExcel(visit.VisitDate),
         }));
 
-        setExcelFile(updatedVisits);
-
+        // Validate all visits
         for (const row of updatedVisits) {
+            if (!row.VisitDate) {
+                toast.error(`Invalid or missing date in row: ${row.SrNo || 'unknown'}`);
+                return null;
+            }
+
             const mVisit = moment(row.VisitDate, 'DD-MM-YYYY');
             if (!mVisit.isValid()) {
                 toast.error(`Invalid date format found: ${row.VisitDate}`);
-                return 0;
+                return null;
             }
             if (mVisit.isBefore(mFrom) || mVisit.isAfter(mTo)) {
                 toast.error(`Visit Date (${row.VisitDate}) must be between ${mFrom.format('DD-MM-YYYY')} and ${mTo.format('DD-MM-YYYY')}`);
-                return 0;
+                return null;
             }
         }
-        return 1;
+
+        // Store validated data
+        setValidatedData(updatedVisits);
+        return updatedVisits;
     };
 
     const initialValues = {
@@ -103,20 +137,21 @@ const Table = ({ visitSummaryData, setVisitSummaryData }) => {
     const formik = useFormik({
         initialValues,
         onSubmit: async (values, { resetForm }) => {
-            setLoading(true);
-            if (!validateDate(values.FromDate, values.ToDate)) {
-                setLoading(false);
+            const dataToUpload = validateDate(values.FromDate, values.ToDate);
+            if (!dataToUpload) {
                 return;
             }
+            setLoading(true);
             try {
                 await api.post('/v1/admin/visit_plan/create-visit', {
                     values,
-                    excelData: excelFile,
+                    excelData: dataToUpload,
                 });
                 setRender((prev) => !prev);
                 toast.success('Visit created successfully');
                 resetForm();
                 setExcelFile(null);
+                setValidatedData(null);
                 setNotValid(false);
                 const fileInput = document.getElementById('excel_pdf');
                 if (fileInput) fileInput.value = '';
@@ -132,6 +167,7 @@ const Table = ({ visitSummaryData, setVisitSummaryData }) => {
         formik.resetForm();
         setSingleUser(null);
         setExcelFile(null);
+        setValidatedData(null);
         setNotValid(false);
         const fileInput = document.getElementById('excel_pdf');
         if (fileInput) fileInput.value = '';
@@ -177,7 +213,7 @@ const Table = ({ visitSummaryData, setVisitSummaryData }) => {
                     pageIndex: currentPage,
                     pageSize: rowsPerPage,
                     planned: planned,
-                    searchEMPCode: filterData.EMPCode1,
+                    searchEMPCode: filterData.EMPCode,
                     startDate: filterData.startDate,
                     endDate: filterData.endDate,
                 },
@@ -198,29 +234,52 @@ const Table = ({ visitSummaryData, setVisitSummaryData }) => {
         getVisit();
     }, [render, masterRender, searchValue, planned, currentPage, rowsPerPage]);
 
-
     const handleSelectExcel = (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
         const reader = new FileReader();
         reader.onload = (evt) => {
-            const bstr = evt.target.result;
-            const wb = XLSX.read(bstr, { type: 'binary' });
-            const wsname = wb.SheetNames[0];
-            const ws = wb.Sheets[wsname];
-            const data = XLSX.utils.sheet_to_json(ws);
+            try {
+                const bstr = evt.target.result;
+                const wb = XLSX.read(bstr, { type: 'binary' });
+                const wsname = wb.SheetNames[0];
+                const ws = wb.Sheets[wsname];
+                const rawData = XLSX.utils.sheet_to_json(ws);
 
-            if (data.length > 0) {
-                const keys = Object.keys(data[0]);
-                if (keys.includes('EMPCode') && keys.includes('FirstName') && keys.includes('LastName') && keys.includes('VisitDate') && keys.includes('VisitPlace')) {
-                    setExcelFile(data);
+                if (rawData.length > 0) {
+                    // Fuzzy mapping of common headers to expected keys
+                    const mapKey = (key) => {
+                        const k = key.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                        if (k === 'empcode' || k === 'empid' || k === 'employeeid' || k === 'employeecode') return 'EMPCode';
+                        if (k === 'firstname' || k === 'fname' || k === 'first') return 'FirstName';
+                        if (k === 'lastname' || k === 'lname' || k === 'last') return 'LastName';
+                        if (k === 'visitdate' || k === 'date' || k === 'vdate') return 'VisitDate';
+                        if (k === 'visitfrom' || k === 'from' || k === 'origin' || k === 'start' || k === 'startlocation') return 'VisitFrom';
+                        if (k === 'visitto' || k === 'to' || k === 'destination' || k === 'end' || k === 'endlocation') return 'VisitTo';
+                        if (k === 'visitpurpose' || k === 'purpose' || k === 'reason' || k === 'remarks') return 'VisitPurpose';
+                        return key;
+                    };
+
+                    const processedData = rawData.map(row => {
+                        const newRow = {};
+                        Object.keys(row).forEach(key => {
+                            newRow[mapKey(key)] = row[key];
+                        });
+                        return newRow;
+                    });
+
+                    setExcelFile(processedData);
+                    setValidatedData(null);
                     setNotValid(false);
-                    toast.success('Excel file parsed successfully');
+                    setShowPreview(true);
+                    toast.success(`✅ Loaded ${processedData.length} records. Review in editor.`);
                 } else {
-                    setNotValid(true);
-                    setExcelFile(null);
-                    toast.error('Invalid Excel format');
+                    toast.error('❌ Excel file is empty');
                 }
+            } catch (error) {
+                console.error(error);
+                toast.error('❌ Error reading Excel file');
             }
         };
         reader.readAsBinaryString(file);
@@ -259,8 +318,8 @@ const Table = ({ visitSummaryData, setVisitSummaryData }) => {
                         <span className="text-xs font-bold">{moment(row.FromDate).format('DD MMM')} — {moment(row.ToDate).format('DD MMM, YYYY')}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${row.IsPlanned === '1' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                            {row.IsPlanned === '1' ? 'Planned' : 'Unplanned'}
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${Number(row.isPlanned) === 1 ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                            {Number(row.isPlanned) === 1 ? 'Planned' : 'Unplanned'}
                         </span>
                     </div>
                 </div>
@@ -354,7 +413,6 @@ const Table = ({ visitSummaryData, setVisitSummaryData }) => {
             </div>
         );
     };
-
 
     return (
         <div className="space-y-8 animate-fade-in pb-10">
@@ -476,13 +534,13 @@ const Table = ({ visitSummaryData, setVisitSummaryData }) => {
                                         {excelFile ? <Check size={32} /> : <FileSpreadsheet size={32} />}
                                     </div>
                                     <p className="text-sm font-bold text-slate-700">
-                                        {excelFile ? `${excelFile.length} Visits Detected` : 'Click to browse files or drag here'}
+                                        {excelFile ? `✅ ${excelFile.length} Visits Loaded - Ready to Edit` : 'Click to browse files or drag here'}
                                     </p>
                                     <p className="text-xs text-slate-400 mt-1">Only .xlsx or .xls formats supported</p>
                                 </label>
 
                                 {notValid && (
-                                    <p className="text-rose-500 text-xs font-bold mt-4 animate-shake">Invalid format. Please use our template.</p>
+                                    <p className="text-rose-500 text-xs font-bold mt-4 animate-shake">Invalid format. Please use Excel file with visit dates.</p>
                                 )}
                             </div>
 
@@ -508,11 +566,20 @@ const Table = ({ visitSummaryData, setVisitSummaryData }) => {
                             </button>
 
                             <div className="flex items-center gap-3">
-                                <Preview visitData={excelFile} setVisitData={setExcelFile} />
+                                <Preview
+                                    visitData={excelFile}
+                                    setVisitData={setExcelFile}
+                                    forceOpen={showPreview}
+                                    setForceOpen={setShowPreview}
+                                    onDataUpdate={(updatedData) => {
+                                        setExcelFile(updatedData);
+                                        setValidatedData(null);
+                                    }}
+                                />
                                 <button
                                     type="submit"
-                                    disabled={loading}
-                                    className="inline-flex items-center gap-2 px-8 py-3.5 bg-primary-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-primary-200 hover:bg-primary-700 hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-50"
+                                    disabled={loading || !excelFile || excelFile.length === 0}
+                                    className="inline-flex items-center gap-2 px-8 py-3.5 bg-primary-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-primary-200 hover:bg-primary-700 hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {loading ? <RefreshCw className="animate-spin" size={18} /> : <Upload size={18} />}
                                     {loading ? 'SYCHRONIZING...' : 'AUTHORIZE & UPLOAD'}
@@ -531,8 +598,10 @@ const Table = ({ visitSummaryData, setVisitSummaryData }) => {
                         <h4 className="font-bold text-primary-900 mb-2">Instructions</h4>
                         <ul className="space-y-3">
                             {[
+                                'Upload Excel file with visit details',
+                                'Click Preview to edit records',
                                 'Ensure visit dates fall within range',
-                                'EmpCode must match database records',
+                                'File must contain VisitDate column',
                                 'Download template for correct headers',
                                 'Max 100 visits per upload'
                             ].map((txt, i) => (
@@ -556,11 +625,11 @@ const Table = ({ visitSummaryData, setVisitSummaryData }) => {
 
                     <div className="flex flex-wrap items-center gap-3">
                         <select
-                            name="EMPCode1"
+                            name="EMPCode"
+                            value={filterData.EMPCode}
                             onChange={handleDateChange}
                             className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-600 focus:ring-4 focus:ring-primary-500/5 outline-none"
                         >
-                            <option value="">Employee Filter</option>
                             <option value="all">All Personnel</option>
                             {user?.map((item) => (
                                 <option key={`filter-${item.EMPCode}`} value={item.EMPCode}>
