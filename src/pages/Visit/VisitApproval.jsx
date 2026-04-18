@@ -3,8 +3,8 @@ import { toast } from 'react-toastify';
 import moment from 'moment';
 import DataTable from 'react-data-table-component';
 import ReactPaginate from 'react-paginate';
-import { 
-    Calendar, MapPin, FileText, Check, X, Search, User, 
+import {
+    Calendar, MapPin, FileText, Check, X, Search, User,
     ClipboardCheck, Filter, RefreshCw, ChevronLeft, ChevronRight,
     Clock, AlertTriangle, TrendingUp
 } from 'lucide-react';
@@ -20,7 +20,7 @@ const VisitApproval = () => {
     const [rejectModal, setRejectModal] = useState(false);
     const [rejectReason, setRejectReason] = useState("");
     const [searchValue, setSearchValue] = useState("");
-    
+
     // Pagination states
     const [totalItems, setTotalItems] = useState(0);
     const [currentPage, setCurrentPage] = useState(0);
@@ -205,7 +205,7 @@ const VisitApproval = () => {
         }
     ];
 
-    const filteredData = pendingVisits.filter(row => 
+    const filteredData = pendingVisits.filter(row =>
         row.EmployeeName.toLowerCase().includes(searchValue.toLowerCase()) ||
         row.VisitPurpose.toLowerCase().includes(searchValue.toLowerCase()) ||
         row.EMPCode.toLowerCase().includes(searchValue.toLowerCase())
@@ -408,7 +408,7 @@ const VisitApproval = () => {
                             You are about to deny <span className="font-bold underline decoration-rose-300 underline-offset-4">{selectedRows.length} visit record(s)</span>. This action will be logged in the audit trail.
                         </div>
                     </div>
-                    
+
                     <div className="space-y-2.5">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Rejection Rationale</label>
                         <textarea
@@ -420,14 +420,14 @@ const VisitApproval = () => {
                     </div>
 
                     <div className="flex items-center justify-end gap-3 pt-4">
-                        <button 
-                            onClick={() => setRejectModal(false)} 
+                        <button
+                            onClick={() => setRejectModal(false)}
                             className="px-6 py-3 text-slate-400 font-bold text-xs uppercase tracking-widest hover:text-slate-600 transition-colors"
                         >
                             Abort
                         </button>
-                        <button 
-                            onClick={() => handleAction(false)} 
+                        <button
+                            onClick={() => handleAction(false)}
                             className="px-8 py-3 bg-rose-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.1em] shadow-xl shadow-rose-100 hover:bg-rose-700 hover:-translate-y-0.5 transition-all"
                         >
                             Confirm Denial

@@ -14,6 +14,7 @@ import { useTableStyles } from '../utils/tableStyles';
 import { TableSearch, TablePagination, TableEmpty, PageLoader } from '../components/ui/TableComponents';
 import Loader from '../components/ui/Loader';
 import { getExpenseDetails } from '../utils/expense_helpers';
+import { io } from 'socket.io-client';
 
 const getMonthDates = () => {
     const now = new Date();
@@ -24,11 +25,9 @@ const getMonthDates = () => {
 
 const fmtDate = (s) => {
     if (!s) return '—';
-    // If it's already a date-like string in DD-MM-YYYY or DD/MM/YYYY format
     if (typeof s === 'string' && (s.includes('-') || s.includes('/'))) {
         const parts = s.split(/[-/]/);
         if (parts.length >= 3) {
-            // Check if it's YYYY-MM-DD
             if (parts[0].length === 4) {
                 const [y, m, d] = parts;
                 const dateObj = new Date(y, m - 1, d.split(' ')[0]);
@@ -37,7 +36,6 @@ const fmtDate = (s) => {
                     return `${p(dateObj.getDate())}/${p(dateObj.getMonth() + 1)}/${dateObj.getFullYear()}`;
                 }
             } else {
-                // Assume DD-MM-YYYY
                 const [d, m, y] = parts;
                 const dateObj = new Date(y.split(' ')[0], m - 1, d);
                 if (!isNaN(dateObj.getTime())) {
@@ -63,13 +61,10 @@ const fmtDateTime = (s) => {
 
 const PaymentStatusBadge = ({ status }) => {
     const st = (status || 'Unpaid').toLowerCase();
-
     if (st === 'paid')
         return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-emerald-50 border-emerald-200 text-emerald-700">Paid</span>;
-
     if (st === 'partialpaid' || st === 'partial paid')
         return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-blue-50 border-blue-200 text-blue-700">Partial Paid</span>;
-
     return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-red-50 border-red-200 text-red-700">Unpaid</span>;
 };
 
@@ -78,12 +73,10 @@ const HrBadge = ({ row }) => {
     const hrVal = row?.ExpenseStatusChangeByHr;
     const isReleased = v === 'released' || v === 'approved' || hrVal === 1 || hrVal === '1';
     const isHold = v === 'hold' || v === 'on hold' || hrVal === 0 || hrVal === '0';
-
     if (isReleased)
         return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-emerald-50 border-emerald-200 text-emerald-700">Released</span>;
     if (isHold)
         return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-amber-50 border-amber-200 text-amber-700">On Hold</span>;
-
     return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-blue-50 border-blue-200 text-blue-700">Pending</span>;
 };
 
@@ -109,10 +102,12 @@ const SettlementReports = () => {
         paymentStatus: 'paid',
         search: ''
     });
-    const [selectedPaidAt, setSelectedPaidAt] = useState('all'); // Separate state to prevent loop
+    const [selectedPaidAt, setSelectedPaidAt] = useState('all');
     const [reportData, setReportData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [exportLoading, setExportLoading] = useState(false);
+    const [exportProgress, setExportProgress] = useState(0);
+    const [exportMessage, setExportMessage] = useState("Preparing Report");
     const [employees, setEmployees] = useState([]);
     const [page, setPage] = useState(0);
     const [perPage, setPerPage] = useState(10);
@@ -124,7 +119,6 @@ const SettlementReports = () => {
             .catch(() => { });
     }, []);
 
-    // Auto-fetch when filter changes
     useEffect(() => {
         const timer = setTimeout(() => {
             fetchReport();
@@ -132,14 +126,13 @@ const SettlementReports = () => {
         return () => clearTimeout(timer);
     }, [filter]);
 
-    // Reset pagination when sub-filters change
     useEffect(() => {
         setPage(0);
     }, [selectedPaidAt]);
 
     const fetchReport = async () => {
         setLoading(true);
-        setPage(0); // Reset to first page
+        setPage(0);
         try {
             const endpoint = '/v1/admin/expense/get-export-expense-hr';
             const params = {
@@ -149,14 +142,10 @@ const SettlementReports = () => {
                 EMPCode: filter.emp === 'all' ? '' : filter.emp,
                 empCode: filter.emp === 'all' ? '' : filter.emp,
             };
-
             params.startDate = filter.startDate;
             params.endDate = filter.endDate;
-
             const res = await api.get(endpoint, { params });
-
             let rows = [];
-            // Backend returns: { error: false, data: [...] }
             if (res.data?.data && Array.isArray(res.data.data)) {
                 rows = res.data.data;
             } else if (res.data?.data?.rows && Array.isArray(res.data.data.rows)) {
@@ -164,10 +153,6 @@ const SettlementReports = () => {
             } else if (Array.isArray(res.data)) {
                 rows = res.data;
             }
-
-            console.log('Fetched rows:', rows.length, rows);
-
-            // Filter by status
             if (filter.status !== 'all') {
                 rows = rows.filter(r => {
                     const st = (r.HrStatus || r.status || '').toLowerCase();
@@ -179,8 +164,6 @@ const SettlementReports = () => {
                     return true;
                 });
             }
-
-            // Filter by payment status (Paid/Unpaid/PartialPaid)
             if (filter.paymentStatus !== 'all') {
                 rows = rows.filter(r => {
                     const ps = (r.PaymentStatus || 'Unpaid').toLowerCase();
@@ -190,13 +173,9 @@ const SettlementReports = () => {
                     return true;
                 });
             }
-
-            // NOTE: Paid date filtering is already done in backend via fromPaidDate & toPaidDate params
-            // No need to filter on client side
-
             setReportData(rows);
             setTotal(rows.length);
-            setSelectedPaidAt('all'); // Reset choice on new data
+            setSelectedPaidAt('all');
             if (!rows.length) toast.info('No results for this criteria');
         } catch (error) {
             console.error(error);
@@ -208,17 +187,61 @@ const SettlementReports = () => {
     const downloadPDF = async (isWatermark = false) => {
         if (!reportData.length) return toast.warning('No data to export');
         setExportLoading(true);
+        setExportProgress(0);
+        setExportMessage("Fetching records...");
+
+        let socket = null;
+        let socketId = null;
+
         try {
+            // Establish socket connection for progress updates
+            const apiUrl = import.meta.env.VITE_APP_API_URL;
+            const socketUrl = apiUrl && apiUrl.includes('/api') ? apiUrl.split('/api')[0] : (apiUrl || window.location.origin);
+            
+            const token = localStorage.getItem('token');
+            socket = io(socketUrl, {
+                transports: ['websocket'],
+                reconnection: false,
+                extraHeaders: {
+                    // Try both common header names just in case
+                    "genie_access_token": `Bearer ${token}`,
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+
+            // Get socket ID
+            setExportMessage("Connecting to Sync...");
+            socketId = await new Promise((resolve) => {
+                socket.on('connect', () => {
+                   console.log('Connected to socket progress:', socket.id);
+                   resolve(socket.id);
+                });
+                socket.on('connect_error', (err) => {
+                    console.error('Socket connection error:', err);
+                    resolve(null);
+                });
+                setTimeout(() => resolve(null), 3000);
+            });
+
+            if (socketId) {
+                socket.on('report-progress', (data) => {
+                    if (data.percentage !== undefined) setExportProgress(data.percentage);
+                    if (data.message) setExportMessage(data.message);
+                });
+            }
+
+            setExportMessage(isWatermark ? "Preparing Images..." : "Generating PDF...");
+
             const params = {
                 searchKey: filter.search,
                 empCode: filter.emp,
                 paymentStatus: filter.paymentStatus,
                 startDate: filter.startDate,
-                endDate: filter.endDate
+                endDate: filter.endDate,
+                socketId: socketId
             };
 
             if (selectedPaidAt !== 'all') {
-                // Robust split for DD-MM-YYYY or DD/MM/YYYY
                 const pts = selectedPaidAt.split(/[-/]/);
                 let cleanDate = selectedPaidAt;
                 if (pts.length >= 3) {
@@ -241,8 +264,14 @@ const SettlementReports = () => {
             link.download = `ExpenseReport_${empName}_${isWatermark ? 'WM' : 'STD'}.pdf`;
             link.click();
             toast.success('PDF generated ✓');
-        } catch { toast.error('PDF export failed'); }
-        setExportLoading(false);
+        } catch (err) { 
+            console.error('PDF Export Error:', err);
+            toast.error('PDF export failed'); 
+        } finally {
+            if (socket) socket.disconnect();
+            setExportLoading(false);
+            setExportProgress(0);
+        }
     };
 
     const exportExcel = () => {
@@ -251,9 +280,8 @@ const SettlementReports = () => {
         try {
             const mapped = finalReportData.map((r, i) => {
                 const total = r.TotalAmount || r.amount || 0;
-                const paid = r.PaidAmount || 0;  // Now coming from backend
+                const paid = r.PaidAmount || 0;
                 const pending = r.PendingAmount || (Number(total) - Number(paid)) || 0;
-
                 return {
                     'S.No': i + 1,
                     'Date': fmtDate(r.createdAt || r.Date),
@@ -303,7 +331,7 @@ const SettlementReports = () => {
 
     return (
         <div className="space-y-6">
-            <Loader show={exportLoading} message="Preparing Report" subMessage="Compiling expenses and audit data..." />
+            <Loader show={exportLoading} message={exportMessage} percentage={exportProgress} subMessage="Compiling expenses and audit data..." />
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
                     <h1 className="text-2xl font-black text-gray-900">Settlement Hub</h1>
@@ -318,8 +346,6 @@ const SettlementReports = () => {
                 <StatCard title="Pending Amount" value={`₹${pendingAmount.toLocaleString('en-IN')}`} icon={Clock} color="bg-orange-500" />
             </div>
 
-
-
             <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
                 <div className="flex gap-2 border-b border-gray-100 pb-4">
                     <div className="px-4 py-2 rounded-lg font-black text-xs bg-gray-900 text-white uppercase tracking-widest flex items-center gap-2">
@@ -327,7 +353,6 @@ const SettlementReports = () => {
                     </div>
                 </div>
 
-                {/* Filters Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Employee</label>
@@ -345,7 +370,6 @@ const SettlementReports = () => {
                         </select>
                     </div>
 
-                    {/* Report Period Filter */}
                     <div className="space-y-1.5 md:col-span-2">
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Report Period (from-to)</label>
                         <div className="grid grid-cols-2 gap-2">
@@ -377,22 +401,6 @@ const SettlementReports = () => {
                         </div>
                     </div>
 
-                    {/* <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Status</label>
-                        <select
-                            value={filter.status}
-                            onChange={e => setFilter({ ...filter, status: e.target.value })}
-                            className="w-full p-2.5 rounded-xl bg-gray-50 border-none text-sm font-semibold cursor-pointer focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="all">All Status</option>
-                            <option value="released">Released</option>
-                            <option value="hold">On Hold</option>
-                            <option value="pending">Pending</option>
-                        </select>
-                    </div> */}
-
-
-
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Search</label>
                         <div className="relative">
@@ -408,7 +416,6 @@ const SettlementReports = () => {
                     </div>
                 </div>
 
-                {/* Paid Date Quick Filter Pins (Integrated) */}
                 {uniquePaidDates.length > 0 && (
                     <div className="pt-4 border-t border-gray-50">
                         <div className="flex items-center gap-2 mb-3 px-1">
@@ -441,7 +448,6 @@ const SettlementReports = () => {
                     </div>
                 )}
 
-                {/* Export Buttons */}
                 <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-50">
                     <button
                         onClick={exportExcel}
@@ -464,7 +470,6 @@ const SettlementReports = () => {
                 </div>
             </div>
 
-            {/* Data Table */}
             <div className="card-glass p-0 overflow-hidden">
                 <div className="table-search-bar">
                     <div className="flex items-center gap-2">
@@ -544,7 +549,6 @@ const SettlementReports = () => {
                             width: '160px',
                             cell: r => <span className="text-[11px] font-medium">{r.PaidAt || '—'}</span>
                         },
-
                         {
                             name: 'HR Status',
                             cell: r => <HrBadge row={r} />,

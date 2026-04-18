@@ -37,9 +37,13 @@ const getVisibleItems = (user) => {
     const desigId = Number(user?.DesigId || 0);
     const deptId = Number(user?.DeptId || 0);
 
-    // Admin IDs: usually 1, 5, 12, etc. (Adjust based on user feedback or project defaults)
+    // Admin/Head/IT/HR IDs for global visibility
     const isAdmin = desig.includes('admin') || [1, 5, 12].includes(desigId) || dept === 'admin' || deptId === 4;
     const isHR = dept.includes('hr') || dept.includes('human resource') || deptId === 3;
+    const isGlobalViewer = isAdmin || isHR || [6, 9, 14].includes(desigId);
+    const isManagerOrAdmin = isGlobalViewer || 
+        desig.includes('manager') || desig.includes('head') || 
+        desig.includes('gm') || desig.includes('asm');
 
     return ALL_NAV.filter(item => {
         // Admin sees everything
@@ -48,6 +52,11 @@ const getVisibleItems = (user) => {
         // HR sees Core + HR specific items
         if (isHR) {
             return item.section === 'core' || item.section === 'hr' || item.name === 'Dashboard';
+        }
+
+        // Special restriction for Visit Approval
+        if (item.name === 'Visit Approval') {
+            if (!isManagerOrAdmin) return false;
         }
 
         // Normal users see Core + personal Expense Report
