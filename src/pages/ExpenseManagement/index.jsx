@@ -307,7 +307,7 @@ const Drawer = ({ open, onClose, selected, images, setImages, loading, onApprove
                                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest flex items-center gap-1.5">
                                     <AlertCircle size={10} /> Claim Intelligence & Remarks
                                 </p>
-                                
+
                                 {selected.Reason && (
                                     <div className="bg-white/80 p-2.5 rounded-xl border border-orange-100/50 shadow-sm">
                                         <p className="text-[8px] font-black text-orange-400 uppercase tracking-wider mb-1">Visit Reason / Category</p>
@@ -467,17 +467,16 @@ const ExpenseManagement = () => {
         try {
             const res = await api.get('/v1/admin/expense/get-expense', {
                 params: {
-                    searchKey: search, pageIndex: page, pageSize: perPage,
-                    startDate: filterDates.startDate, endDate: filterDates.endDate,
-                    EMPCode: empFilter,
-                    filter: statusFilter
+                    pageSize: 5000, // Fetch all reasonably (adjust if needed)
+                    startDate: filterDates.startDate,
+                    endDate: filterDates.endDate,
+                    filter: 'All' // Get everything from backend initially
                 },
             });
             setData(res.data.data.rows || []);
-            if (page === 0) setTotal(res.data.data.count || 0);
         } catch { /* silent */ }
         setLoading(false);
-    }, [trigger, search, page, perPage, filterDates, statusFilter, holdReleaseFilter, empFilter]);
+    }, [trigger, filterDates]);
 
     useEffect(() => {
         api.get('/v1/admin/user_details/get-all-user')
@@ -506,7 +505,7 @@ const ExpenseManagement = () => {
             // Update selected with full detail from response
             const fullDetail = res.data?.data?.data?.[0];
             if (fullDetail) setSelected(fullDetail);
-            
+
             setExpenseImages(res.data?.data?.docsResult || []);
         } catch { /* silent */ }
         setDetailLoading(false);
@@ -562,22 +561,53 @@ const ExpenseManagement = () => {
         setBulkApproving(false);
     };
 
-    // ── Filters (mirrors old Table.js displayedCategory) ─────────────────────
-    // ── Filters (rely on server-side where possible) ─────────────────────────
-    const displayedData = useMemo(() => {
+    const filteredData = useMemo(() => {
         let d = data;
-        if (selfToggle && currentEMPCode) {
-            d = d.filter(r => r.EMPCode === currentEMPCode);
+
+        // Search
+        if (search) {
+            const s = search.toLowerCase();
+            d = d.filter(r =>
+                (r.FirstName + ' ' + r.LastName + ' ' + r.EMPCode + ' ' + (r.ExpModeDesc || '')).toLowerCase().includes(s)
+            );
         }
-        // Local filtering for Hold/Release as API might not support it perfectly in 'filter' param
+
+        // Status Filter
+        if (statusFilter !== 'All') {
+            d = d.filter(r => normalize(r.ExpenseStatus) === normalize(statusFilter));
+        }
+
+        // Personnel Filter
+        if (empFilter !== 'all') {
+            d = d.filter(r => String(r.EMPCode) === String(empFilter));
+        }
+
+        // Self Toggle
+        if (selfToggle && currentEMPCode) {
+            d = d.filter(r => String(r.EMPCode) === String(currentEMPCode));
+        }
+
+        // HR Hold/Release
         if (holdReleaseFilter !== 'All') {
             d = d.filter(r => {
                 const hrStatus = r.ExpenseStatusChangeByHr === 1 ? 'Released' : 'On Hold';
                 return normalize(hrStatus) === normalize(holdReleaseFilter);
             });
         }
+
         return d;
-    }, [data, selfToggle, currentEMPCode, holdReleaseFilter]);
+    }, [data, search, statusFilter, empFilter, selfToggle, currentEMPCode, holdReleaseFilter]);
+
+    // Sync total count and reset page on filter change
+    useEffect(() => {
+        setTotal(filteredData.length);
+        setPage(0);
+    }, [search, statusFilter, empFilter, selfToggle, holdReleaseFilter, filteredData.length]);
+
+    const displayedData = useMemo(() => {
+        const offset = page * perPage;
+        return filteredData.slice(offset, offset + perPage);
+    }, [filteredData, page, perPage]);
 
     const statusCounts = useMemo(() => {
         const c = { approved: 0, inprogress: 0, rejected: 0 };
@@ -815,7 +845,7 @@ const ExpenseManagement = () => {
                         },
                     }}
                     selectableRows
-                    selectableRowDisabled={r => String(r.EMPCode) === String(currentEMPCode)}
+                    selectableRowDisabled={r => String(r.EMPCode) === String(currentEMPCode) || r.ExpenseStatus === 'Approved' || r.ExpenseStatus === 'Rejected'}
                     onSelectedRowsChange={({ selectedRows: sr }) => setSelectedRows(sr)}
                     clearSelectedRows={toggleCleared}
                     progressComponent={<PageLoader />}
